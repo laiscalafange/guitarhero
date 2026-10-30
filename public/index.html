@@ -183,7 +183,7 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
       <div id="pan-file" role="tabpanel" aria-labelledby="tab-file" hidden>
         <label class="drop" id="drop" for="fileIn">
           <strong>Solte um áudio aqui ou toque para escolher</strong>
-          <span>mp3, wav, ogg, m4a ou flac. Se jogar com amigos, todos precisam carregar o mesmo arquivo. Nenhum áudio é enviado ao servidor.</span>
+          <span>MP3, WAV, OGG, M4A ou FLAC, até 25 MB. O áudio será enviado temporariamente à sala para todos jogarem juntos.</span>
         </label>
         <input class="sr" id="fileIn" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.aac">
       </div>
@@ -214,7 +214,7 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
       <div class="ph"><h2 id="h-banda">Banda</h2></div>
       <div class="strips" id="strips"></div>
       <ul class="roster" id="roster"></ul>
-      <p class="hint">Cada pessoa toca no próprio teclado (A S D F G, ou H J K L Ç) ou na tela. Quem escolhe o mesmo instrumento se ajuda: se um acerta a nota, vale como acerto para os dois. Só vira erro quando todos do instrumento erram.</p>
+      <p class="hint">Cada pessoa toca no próprio teclado (A S D F G, ou H J K L Ç) ou na tela. Segure as notas com rastro até a ponta passar pela linha. Quem escolhe o mesmo instrumento se ajuda: se um acerta a nota, vale como acerto para os dois. Só vira erro quando todos do instrumento erram.</p>
     </section>
 
     <div class="startbar full">
@@ -506,6 +506,20 @@ function estimateBeat(F) {
   return best.sc > mean * 1.7 ? { per: best.per, ph: best.ph } : null;
 }
 
+function assignLongNotes(notes, instr, duration) {
+  // Notas com rastro são sustentadas: requerem manter a tecla pressionada.
+  // Não colocar holds onde já vem outra nota no mesmo instante.
+  if (instr === 'bateria') return notes;
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i], next = notes[i + 1], gap = next ? next.t - n.t : 0;
+    if (gap < 0.58 || n.s < 0.12) continue;
+    let same = duration - n.t;
+    for (let j = i + 1; j < notes.length; j++) if (notes[j].lane === n.lane) { same = notes[j].t - n.t; break; }
+    const dur = Math.min(1.15, gap * 0.78, same - 0.13, duration - n.t - 0.15);
+    if (dur >= 0.38) n.dur = +dur.toFixed(3);
+  }
+  return notes;
+}
 function buildChart(F, instr, diffKey) {
   const D = DIFFS[diffKey], laneCount = Math.min(INSTR[instr].lanes, D.lanes);
   const fd = F.frameDur, bias = BIAS[instr];
@@ -576,6 +590,7 @@ function buildChart(F, instr, diffKey) {
   }
   notes = notes.filter(n => n.t > 0.2 && n.t < F.duration - 0.2);
   notes.sort((a, b) => a.t - b.t || a.lane - b.lane);
+  assignLongNotes(notes, instr, F.duration);
   return { notes, laneCount };
 }
 
@@ -828,26 +843,45 @@ async function connectRoom(code) {
   return new Promise((resolve, reject) => {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(proto + '//' + location.host + '/ws?room=' + encodeURIComponent(code));
-    let myId = '', ready = false, roster = [], closed = false;
+    let myId = '', token = '', ready = false, roster = [], closed = false, selected = null;
     const listeners = {}, peerWatch = [];
     const room = {
       peers: () => roster.map(p => ({ ...p, sameTab: p.peer === myId, isMe: p.peer === myId })),
       onPeers: fn => { peerWatch.push(fn); fn(); },
       on: (event, fn) => { (listeners[event] ||= []).push(fn); },
       emit: (event, data) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'event', event, data })); return Promise.resolve(); },
-      presence: data => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'presence', data })); return Promise.resolve(); }
+      presence: data => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'presence', data })); return Promise.resolve(); },
+      get currentSong() { return selected; },
+      async upload(file) {
+        const res = await fetch('/api/song?room=' + encodeURIComponent(code), {
+          method: 'POST', headers: { 'X-Jam-Token': token, 'X-Jam-Name': encodeURIComponent(file.name), 'Content-Type': file.type || 'application/octet-stream' },
+          body: file
+        });
+        if (!res.ok) throw Error(await res.text());
+        return (await res.json()).song;
+      },
+      async download() {
+        const res = await fetch('/api/song?room=' + encodeURIComponent(code), { headers: { 'X-Jam-Token': token }, cache: 'no-store' });
+        if (!res.ok) throw Error(await res.text());
+        return res.arrayBuffer();
+      }
     };
     const timeout = setTimeout(() => { if (!ready) { ws.close(); reject(new Error('O servidor não respondeu. Tente novamente.')); } }, 90000);
     ws.addEventListener('message', e => {
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.type === 'welcome') {
         myId = m.id;
+        token = m.token;
+        selected = m.song || null;
         ready = true;
         clearTimeout(timeout);
         resolve(room);
       } else if (m.type === 'peers') {
         roster = Array.isArray(m.peers) ? m.peers : [];
         peerWatch.forEach(fn => fn());
+      } else if (m.type === 'song') {
+        selected = m.song;
+        (listeners.song || []).forEach(fn => fn(m.song));
       } else if (m.type === 'event' && typeof m.event === 'string') {
         const own = m.peer === myId;
         (listeners[m.event] || []).forEach(fn => fn({ peer: m.peer, sameTab: own, isMe: own, data: m.data }));
@@ -912,7 +946,9 @@ const Net = (() => {
       if (rtt < N.rtt) { N.rtt = rtt; N.off = d.th + rtt / 2 - t1; }
     });
     N.on('hit', m => { if (!m.sameTab) onHit(m.data); });
+    N.on('hold', m => { if (!m.sameTab) onHold(m.data); });
     N.on('err', m => { if (!m.sameTab) onErr(m.data, m); });
+    if (N.r) { N.r.on('song', applyRoomSong); applyRoomSong(N.r.currentSong); }
     onRoom();
   };
   return N;
@@ -932,27 +968,28 @@ function followHost() {
   const hs = h.presence.hs;
   if (!hs || hs === followed) return;
   followed = hs;
-  if (DEMO_SONGS[hs]) { setTab('demo', true); pickDemo(hs); }
-  else { setTab('file', true); S.song = null; Net.set({ sg: null }); setStatus('O host escolheu “' + (String(h.presence.hn || 'arquivo de áudio')) + '”. Carregue o mesmo arquivo.'); updateSummary(); }
+  // A seleção vem do próprio servidor, não da presença do host.
+  // Mantido para compatibilidade com o modo solo.
+  if (Net.offline && DEMO_SONGS[hs]) { setTab('demo', true); pickDemo(hs); }
 }
 function hostWatch() {
   const pr = S.prep;
   if (!pr || !Net.isHost() || pr.sent) return;
   const ps = Net.peers();
-  const ok = pr.roster.every(a => { const p = ps.find(x => x.peer === a.p); return !p || p.presence.rd === pr.r || p.presence.rd === -1; });
+  const ok = pr.roster.every(a => { const p = ps.find(x => x.peer === a.p); return !p || p.presence.rd === pr.r; });
   if (ok) { pr.sent = true; setTimeout(() => Net.emit('start', { r: pr.r, at: Net.now() + 3100 }), 1400); }
 }
 function renderRoster() {
-  const h = Net.host(), hs = h && h.presence.hs;
+  const h = Net.host(), hs = Net.r ? (Net.r.currentSong && Net.r.currentSong.key) : (S.song && S.song.key);
   $('#roster').innerHTML = Net.peers().slice().sort((a, b) => num(a.presence.seq) - num(b.presence.seq)).map(p => {
-    const q = p.presence, st = q.on === false ? 'assistindo' : (hs && q.sg !== hs ? 'sem a música' : 'pronto');
+    const q = p.presence, st = q.on === false ? 'assistindo' : (hs && q.sg !== hs ? 'recebendo música…' : 'pronto');
     return '<li style="--acc:' + (ACC[q.i] || '#9a9ec7') + '"><b>' + esc(q.n) + (p.sameTab ? ' (você)' : '') + (h && h.peer === p.peer ? ' · host' : '') + '</b><span>' +
       (INSTR[q.i] ? INSTR[q.i].label : '') + ' · ' + (DIFFS[q.d] ? DIFFS[q.d].label : '') + '</span><em>' + st + '</em></li>';
   }).join('');
 }
 function onRoom() {
   if (!Net.joined) return;
-  followHost(); hostWatch();
+  hostWatch();
   if (G) return;
   const hf = Net.isHost();
   if (hf && S.song && Net.my.hs !== S.song.key && !S.busy) Net.set({ hs: S.song.key, hn: S.song.name });
@@ -966,7 +1003,7 @@ function onGo(d) {
   d.roster = d.roster.filter(r => r && typeof r.p === 'string' && INSTR[r.i] && DIFFS[r.d]).slice(0, 8).map(r => ({ p: r.p, n: String(r.n || '?').slice(0, 16), i: r.i, d: r.d }));
   S.prep = null;
   prepare(d);
-  if (Net.isHost()) setTimeout(() => { const pr = S.prep; if (pr && pr.r === d.r && !pr.sent) { pr.sent = true; Net.emit('start', { r: d.r, at: Net.now() + 3100 }); } }, 90000);
+  if (Net.isHost()) setTimeout(() => { const pr = S.prep; if (pr && pr.r === d.r && !pr.sent) { setLobbyNote('Nem todos terminaram a análise. Confira a conexão e tente novamente.'); } }, 90000);
 }
 function onStart(d) {
   const pr = S.prep;
@@ -976,6 +1013,10 @@ function onStart(d) {
 }
 function hostGo() {
   if (!Net.isHost() || S.busy || !S.song || (S.prep && S.prep.players)) return;
+  const active = Net.peers().filter(p => p.presence.on !== false);
+  if (!active.length || active.some(p => p.presence.sg !== S.song.key)) {
+    setLobbyNote('Espere todos os participantes receberem a música antes de começar.'); return;
+  }
   const roster = rosterNow();
   if (!roster.length) return;
   Net.emit('go', { r: Math.floor(Net.now()), sg: S.song.key, roster });
@@ -993,7 +1034,16 @@ function onHit(d) {
   for (let k = P.ptr[l]; k < list.length; k++) {
     const n = P.notes[list[k]];
     if (n.t > num(d.t) + 0.1) break;
-    if (n.st === 0 && Math.abs(n.t - num(d.t)) <= 0.09) { n.st = 3; break; }   // coberta por quem toca o mesmo instrumento
+    if ((n.st === 0 || n.st === 6) && Math.abs(n.t - num(d.t)) <= 0.09) { n.st = n.dur ? 6 : 3; break; } // espera completar uma nota longa
+  }
+}
+function onHold(d) {
+  if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
+  const P = G.players[0], l = d.l | 0;
+  if (P.instr !== d.i || l < 0 || l >= P.laneCount) return;
+  for (const idx of P.lane[l]) {
+    const n = P.notes[idx];
+    if (Math.abs(n.t - num(d.t)) <= 0.09 && (n.st === 0 || n.st === 6)) { n.st = 3; break; }
   }
 }
 function onErr(d, m) {
@@ -1028,7 +1078,7 @@ async function joinRoom(solo, fresh) {
     $('#btnCopyInvite').hidden = solo;
     $('#netStatus').className = 'status ok';
     $('#netStatus').textContent = solo ? 'Modo solo ativo.' : 'Conectado à sala ' + code + '. Até 8 amigos podem jogar juntos.';
-    setLobbyNote(solo ? 'Toque para iniciar sua música.' : 'Compartilhe o link da sala. Só quem criou/entrou primeiro inicia a música.');
+    setLobbyNote(solo ? 'Toque para iniciar sua música.' : 'Compartilhe o link. Qualquer participante pode escolher e enviar a música; o host inicia para todos.');
     onRoom();
   } catch (e) {
     console.error(e);
@@ -1073,24 +1123,72 @@ async function pickDemo(id) {
   setStatus('Pronta: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
   updateSummary();
 }
+let selectionToken = 0;
+async function applyRoomSong(meta) {
+  if (!Net.joined || !Net.r || !meta) return;
+  if (G || S.busy || (S.prep && S.prep.players)) {
+    setLobbyNote('Nova música escolhida na sala. Ela ficará disponível ao retornar ao lobby.');
+    return;
+  }
+  const token = ++selectionToken;
+  if (S.song && S.song.key === meta.key) {
+    Net.set({ sg: meta.key });
+    setStatus('Música sincronizada: ' + S.song.name, 'ok');
+    renderRoster(); updateSummary(); return;
+  }
+  S.song = null; Net.set({ sg: null }); updateSummary();
+  if (meta.kind === 'demo') {
+    setTab('demo', true);
+    await pickDemo(meta.key);
+    return;
+  }
+  setTab('file', true);
+  setStatus('Recebendo “' + decodeURIComponent(meta.name) + '” da sala (' + (meta.size / (1024 * 1024)).toFixed(1) + ' MB)…');
+  try {
+    const ab = await Net.r.download();
+    if (token !== selectionToken) return;
+    setStatus('Preparando áudio compartilhado…');
+    const buf = await getCtx().decodeAudioData(ab);
+    if (token !== selectionToken) return;
+    S.song = songFromBuffer(buf, decodeURIComponent(meta.name).replace(/\.[^.]+$/, ''), 'Arquivo compartilhado');
+    S.song.key = meta.key;
+    Net.set({ sg: meta.key });
+    setStatus('Recebida: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
+  } catch (e) {
+    if (token === selectionToken) setStatus('Falha ao baixar o áudio da sala: ' + e.message + '. Peça para enviar novamente.', 'err');
+  }
+  renderRoster(); updateSummary();
+}
 async function loadFile(file) {
-  if (!file) return;
+  if (!file || S.busy || G) return;
+  if (file.size > 25 * 1024 * 1024) { setStatus('O arquivo ultrapassa 25 MB. Tente um MP3 mais compacto.', 'err'); return; }
+  const token = ++selectionToken;
   S.song = null; Net.set({ sg: null }); updateSummary();
   setStatus('Lendo ' + file.name + '…');
   try {
     const ab = await file.arrayBuffer();
-    // Assinatura do conteúdo: evita que jogadores usem áudios diferentes com o mesmo nome.
-    const hashBytes = crypto.subtle ? await crypto.subtle.digest('SHA-256', ab) : null;
+    const hashBytes = globalThis.crypto && crypto.subtle ? await crypto.subtle.digest('SHA-256', ab) : null;
     const hash = hashBytes ? [...new Uint8Array(hashBytes)].map(n => n.toString(16).padStart(2, '0')).join('').slice(0, 32) : file.name + ':' + file.size;
-    const c = getCtx();
-    const buf = await new Promise((res, rej) => c.decodeAudioData(ab, res, rej));
+    const buf = await getCtx().decodeAudioData(ab.slice(0));
     if (buf.duration > 15 * 60) { setStatus('Esse áudio tem mais de 15 minutos. Escolha um arquivo menor.', 'err'); return; }
-    S.song = songFromBuffer(buf, file.name.replace(/\.[^.]+$/, ''), 'Arquivo');
-    S.song.key = 'f:' + hash; Net.set({ sg: S.song.key });
-    if (Net.joined && !Net.isHost()) { const h = Net.host(); if (h && h.presence.hs !== S.song.key) { setStatus('Esse não é o arquivo que o host escolheu.', 'err'); updateSummary(); return; } }
-    setStatus('Pronta: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
+    if (token !== selectionToken) return;
+    // Já decodificou localmente: assim não precisa baixar de volta o mesmo arquivo.
+    const song = songFromBuffer(buf, file.name.replace(/\.[^.]+$/, ''), 'Arquivo');
+    song.key = 'f:' + hash;
+    S.song = song;
+    if (Net.r) {
+      setStatus('Enviando a música para todos da sala…');
+      const result = await Net.r.upload(file);
+      if (token !== selectionToken) return;
+      S.song.key = result.key;
+      Net.set({ sg: result.key });
+      setStatus('Enviada para a sala: ' + S.song.name + '. Esperando os amigos receberem…', 'ok');
+    } else {
+      Net.set({ sg: song.key });
+      setStatus('Pronta: ' + song.name + ' · ' + fmtTime(song.duration), 'ok');
+    }
   } catch (e) {
-    setStatus('Não consegui abrir esse arquivo. Tente mp3, wav, ogg ou m4a.', 'err');
+    if (token === selectionToken) { S.song = null; Net.set({ sg: null }); setStatus('Não consegui enviar ou abrir o áudio: ' + e.message, 'err'); }
   }
   updateSummary();
 }
@@ -1099,7 +1197,7 @@ async function loadFile(file) {
 function renderDemos() {
   el.demos.setAttribute('role', 'tabpanel');
   el.demos.innerHTML = '<div class="demos" role="radiogroup" aria-label="Músicas de exemplo">' + Object.keys(DEMO_SONGS).map(k =>
-    '<button type="button" class="demo" role="radio" aria-checked="' + (S.demo === k) + '" data-demo="' + k + '"' + (Net.joined && !Net.isHost() ? ' disabled' : '') + '><b>' +
+    '<button type="button" class="demo" role="radio" aria-checked="' + (S.demo === k) + '" data-demo="' + k + '"' + (S.busy ? ' disabled' : '') + '><b>' +
     DEMO_SONGS[k].name + '</b><span>' + DEMO_SONGS[k].style + ' · 1:10 · feita só de código</span></button>').join('') + '</div>';
 }
 function renderStrips() {
@@ -1117,17 +1215,21 @@ function renderStrips() {
 }
 function updateSummary() {
   const n = rosterNow().length, host = Net.isHost();
-  el.go.disabled = !(Net.joined && Net.connected && host && S.song && n > 0 && !S.busy && !(S.prep && S.prep.players));
-  el.go.textContent = S.busy ? 'Analisando…' : host || !Net.joined ? 'Analisar e tocar' : 'Só o host inicia';
-  el.summary.textContent = (S.song ? S.song.name : 'Nenhuma música') + ' · ' + n + (n === 1 ? ' jogador' : ' jogadores') + (Net.joined && !Net.offline ? ' · sala ' + Net.code : '');
+  const active = Net.peers().filter(p => p.presence.on !== false).length;
+  const ready = !!S.song && n === active && active > 0 && (!Net.r || Net.r.currentSong?.key === S.song.key);
+  el.go.disabled = !(Net.joined && Net.connected && host && ready && !S.busy && !(S.prep && S.prep.players));
+  el.go.textContent = S.busy ? 'Analisando…' : !host && Net.joined ? 'Só o host inicia' : !ready && active ? 'Aguardando a banda' : 'Analisar e tocar';
+  el.summary.textContent = (S.song ? S.song.name : 'Nenhuma música') + ' · ' + n + '/' + active + ' prontos'  + (Net.joined && !Net.offline ? ' · sala ' + Net.code : '');
 }
 function setTab(t, keep) {
   S.tab = t;
   document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
   $('#pan-demo').hidden = t !== 'demo'; $('#pan-file').hidden = t !== 'file';
   if (keep) return;
-  if (t === 'demo') pickDemo(S.demo);
-  else { S.song = null; setStatus('Nenhum arquivo escolhido.'); updateSummary(); }
+  if (t === 'demo') {
+    if (Net.r) Net.emit('demo', { id: S.demo });
+    else pickDemo(S.demo);
+  } else { setStatus('Escolha um arquivo para enviar para a sala.'); updateSummary(); }
 }
 function setProg(p, txt) {
   el.progBox.hidden = false; el.progFill.style.width = Math.round(p * 100) + '%'; el.progText.textContent = txt || '';
@@ -1146,7 +1248,7 @@ const C_PERS = 3.4, S_MIN = 1 / (1 + C_PERS);
 
 function makePlayer(cfg, chart) {
   const D = DIFFS[cfg.diff], L = chart.laneCount;
-  const notes = chart.notes.map(n => ({ t: n.t, lane: n.lane, st: 0 }));
+  const notes = chart.notes.map(n => ({ t: n.t, lane: n.lane, dur: n.dur || 0, st: 0 }));
   const lane = Array.from({ length: L }, () => []);
   notes.forEach((n, i) => lane[n.lane].push(i));
   return {
@@ -1288,8 +1390,14 @@ function update(tv) {
     for (let q = k; q < list.length; q++) {
       const n = P.notes[list[q]];
       if (n.t > tv) break;
-      if (n.st === 3) { if (n.t < tv - P.win.ok) { n.st = 4; P.cov++; } }
-      else if (n.st === 0 && n.t < tv - P.win.ok - grace) {
+      if (n.st === 5 && tv >= n.t + n.dur) {
+        n.st = 1;
+        P.score += 50;
+        P.last = { text: 'SLIDE COMPLETO +50', color: '#38e3b0', t0: tv };
+        Net.emit('hold', { r: G.round, i: P.instr, l: n.lane, t: +n.t.toFixed(3) });
+      }
+      if (n.st === 3 && (n.dur ? tv >= n.t + n.dur : n.t < tv - P.win.ok)) { n.st = 4; P.cov++; }
+      else if ((n.st === 0 || n.st === 6) && n.t + (n.st === 6 ? n.dur : 0) < tv - P.win.ok - grace) {
         n.st = 2; P.miss++; breakCombo(P); failFx(P, tv);
         P.last = { text: 'ERROU', color: '#ff5c7a', t0: tv };
         if (n.t >= tv - 1.0) {                                   // aba em segundo plano: erros muito antigos passam em silêncio
@@ -1316,17 +1424,17 @@ function press(pi, l) {
   for (let k = P.ptr[l]; k < list.length; k++) {
     const c = P.notes[list[k]];
     if (c.t > tv + P.win.ok) break;
-    if ((c.st === 0 || c.st === 3) && Math.abs(tv - c.t) <= P.win.ok) { n = c; break; }
+    if ((c.st === 0 || c.st === 3 || c.st === 6) && Math.abs(tv - c.t) <= P.win.ok) { n = c; break; }
   }
   if (n) {
     const ad = Math.abs(tv - n.t);
-    n.st = 1; if (tv >= (G.muteUntil[P.instr] || 0)) setMutedI(P.instr, false);
+    n.st = n.dur ? 5 : 1; if (tv >= (G.muteUntil[P.instr] || 0)) setMutedI(P.instr, false);
     const j = ad <= P.win.perfect ? 0 : ad <= P.win.good ? 1 : 2;
     P.combo++; if (P.combo > P.maxCombo) P.maxCombo = P.combo;
     const mult = Math.min(4, 1 + Math.floor(P.combo / 10));
     P.score += [100, 70, 40][j] * mult;
     P.cnt[j]++; P.hitFx[l] = tv;
-    P.last = { text: ['PERFEITO', 'BOM', 'OK'][j], color: ['#38e3b0', '#ffc933', '#9a9ec7'][j], t0: tv };
+    P.last = { text: n.dur ? 'SEGURE ATÉ O FINAL' : ['PERFEITO', 'BOM', 'OK'][j], color: ['#38e3b0', '#ffc933', '#9a9ec7'][j], t0: tv };
     const x = P.cx + (l + 0.5 - P.laneCount / 2) * P.laneW, col = LANE_COL[P.instr][l];
     for (let q = 0; q < 9; q++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = 90 + Math.random() * 170;
@@ -1342,7 +1450,23 @@ function press(pi, l) {
   failFx(P, tv); playErrI(P.instr);
   Net.emit('err', { r: G.round, i: P.instr, m: mute ? 1 : 0, s: 1 });
 }
-function release(pi, l) { const P = G && G.players[pi]; if (P && l < P.laneCount) P.down[l] = false; }
+function release(pi, l) {
+  const P = G && G.players[pi];
+  if (!P || l >= P.laneCount || !P.down[l]) return;
+  P.down[l] = false;
+  if (!G || G.dead || G.state !== 'play') return;
+  for (const idx of P.lane[l]) {
+    const n = P.notes[idx];
+    if (n.st !== 5) continue;
+    if (G.tv >= n.t + n.dur - 0.07) return; // pequena tolerância na ponta da nota
+    n.st = 2; P.miss++; breakCombo(P);
+    failFx(P, G.tv);
+    P.last = { text: 'SOLTOU ANTES DO FIM', color: '#ff5c7a', t0: G.tv };
+    setMutedI(P.instr, true); G.muteUntil[P.instr] = G.tv + 0.45;
+    Net.emit('err', { r: G.round, i: P.instr, m: 1, s: 1 });
+    break;
+  }
+}
 
 function togglePause() {   // online não pausa: o menu só abre por cima enquanto a música segue
   if (!G || G.state === 'end') return;
@@ -1354,6 +1478,7 @@ function quit() {
   G.dead = true; cancelAnimationFrame(G.raf); stopAudio(); clearInterval(G.statT); clearInterval(G.endT); S.prep = null; Net.set({ st: null, rd: null });
   try { ctx.resume(); } catch (e) { /* segue */ }
   G = null;
+  if (Net.r && Net.r.currentSong && S.song?.key !== Net.r.currentSong.key) applyRoomSong(Net.r.currentSong);
   el.stage.hidden = true; el.setup.hidden = false;
   el.sheetPause.hidden = true; el.sheetEnd.hidden = true;
   document.documentElement.style.overflow = '';
@@ -1500,27 +1625,27 @@ function drawPlayer(g, P, tv) {
   g.lineWidth = 3; g.strokeStyle = 'rgba(225,230,255,.85)';
   g.beginPath(); g.moveTo(cx - hw / 2 * S_MIN, yT); g.lineTo(cx - hw / 2, yH); g.moveTo(cx + hw / 2 * S_MIN, yT); g.lineTo(cx + hw / 2, yH); g.stroke();
   // notas (de longe para perto)
-  while (P.i0 < N.length && N[P.i0].t < tv - 0.3) P.i0++;
+  while (P.i0 < N.length && N[P.i0].t + (N[P.i0].dur || 0) < tv - 0.3) P.i0++;
   let j = P.i0;
   while (j < N.length && N[j].t <= tv + look) j++;
-  // rastros coloridos atrás das notas (visual, não precisa segurar)
+  // Rastros das notas longas: o jogador precisa segurar até a cauda chegar à linha.
   if (P.instr !== 'bateria') {
     for (let q = j - 1; q >= P.i0; q--) {
-      const n = N[q]; if (n.st === 1 || n.st === 4) continue;
-      const u = (n.t - tv) / look; if (u > 1 || u < -0.1) continue;
-      const nx = N[q + 1], gap = nx ? nx.t - n.t : 0.8;
-      if (gap < 0.3) continue;
-      const u2 = Math.min(1, (n.t + Math.min(0.8, gap * 0.8) - tv) / look);
-      if (u2 <= u) continue;
-      const p1 = proj(P, u), p2 = proj(P, u2), xl = (n.lane + 0.5 - L / 2) * laneW;
-      const x1 = cx + xl * p1.s, x2 = cx + xl * p2.s, w1 = laneW * p1.s * 0.1, w2 = laneW * p2.s * 0.1;
-      let a = n.st === 2 ? 0.3 : 0.95; if (u < 0) a *= Math.max(0, 1 + u / 0.1);
-      for (let pass = 0; pass < 2; pass++) {
-        const k = pass ? 0.35 : 1;
-        g.globalAlpha = a; g.fillStyle = pass ? 'rgba(255,255,255,.6)' : (n.st === 2 ? '#6f73a3' : col[n.lane]);
-        g.beginPath(); g.moveTo(x1 - w1 * k, p1.y); g.lineTo(x1 + w1 * k, p1.y); g.lineTo(x2 + w2 * k, p2.y); g.lineTo(x2 - w2 * k, p2.y); g.closePath(); g.fill();
-      }
-      g.globalAlpha = 1;
+      const n = N[q]; if (!n.dur || n.st === 1 || n.st === 4 || n.st === 2) continue;
+      const startU = Math.max(0, (n.t - tv) / look);
+      const endU = Math.min(1, (n.t + n.dur - tv) / look);
+      if (endU <= 0 || startU > 1 || endU <= startU) continue;
+      const p1 = proj(P, startU), p2 = proj(P, endU);
+      const xl = (n.lane + .5 - L / 2) * laneW;
+      const x1 = cx + xl * p1.s, x2 = cx + xl * p2.s;
+      const w1 = laneW * p1.s * .15, w2 = laneW * p2.s * .15;
+      g.save(); g.globalAlpha = n.st === 3 || n.st === 6 ? 0.5 : 0.92;
+      g.fillStyle = col[n.lane];
+      g.beginPath(); g.moveTo(x1-w1,p1.y); g.lineTo(x1+w1,p1.y);
+      g.lineTo(x2+w2,p2.y); g.lineTo(x2-w2,p2.y); g.closePath(); g.fill();
+      g.fillStyle = '#fff';
+      g.beginPath(); g.arc(x2,p2.y,Math.max(3,w2*.8),0,Math.PI*2); g.fill();
+      g.restore();
     }
   }
   for (let q = j - 1; q >= P.i0; q--) {
@@ -1637,6 +1762,7 @@ document.addEventListener('keyup', e => {
 });
 
 window.addEventListener('resize', layout);
+window.addEventListener('blur', () => { if (G) G.players.forEach((P, pi) => P.down.forEach((down, lane) => { if (down) release(pi, lane); })); });
 el.cv.addEventListener('pointerdown', e => {
   if (!G || G.paused || G.state === 'end') return;
   const r = el.cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
@@ -1667,10 +1793,10 @@ $('#btnFull').addEventListener('click', () => {
   } catch (e) { /* sem tela cheia */ }
 });
 
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { if (Net.joined && !Net.isHost()) return; setTab(b.dataset.tab); if (b.dataset.tab === 'demo') Net.set({ hs: S.demo, hn: DEMO_SONGS[S.demo].name }); }));
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { if (S.busy || G) return; setTab(b.dataset.tab); }));
 el.demos.addEventListener('click', e => {
   const b = e.target.closest('[data-demo]');
-  if (b && !S.busy && (!Net.joined || Net.isHost())) { pickDemo(b.dataset.demo); Net.set({ hs: b.dataset.demo, hn: DEMO_SONGS[b.dataset.demo].name }); }
+  if (b && !S.busy && !G) { if (Net.r) Net.emit('demo', { id: b.dataset.demo }); else pickDemo(b.dataset.demo); }
 });
 el.strips.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'), s = e.target.closest('.strip');
