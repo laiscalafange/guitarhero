@@ -1,0 +1,23 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),http=require('node:http');
+test('importação compartilhada fica pronta sem IA, preserva partitura e exige o dono; catálogo distingue estados',async t=>{
+  const a={id:'a',uploadToken:'token-a',presence:{}},b={id:'b',uploadToken:'token-b',presence:{}},room={code:'chart-library',members:new Set([a,b]),playlist:[],songRevision:1,song:{meta:{key:'rock'}}},rooms=new Map([[room.code,room]]);
+  const analysis=require('../analysis-service')({rooms,broadcast(){},announce(){}});
+  const music=require('../music-service')({rooms,broadcast(){},onAdd:()=>analysis.enqueue(room),catalogProvider:{search:async q=>({status:q==='missing'?'not_found':q==='offline'?'unavailable':'found',results:q==='present'?[{name:'Exemplo'}]:[]})},canSelect:(_,key)=>analysis.state(room,key).status==='ready'});
+  const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');if(await analysis.handle(req,res,url))return;await music.handle(req,res,url);});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(async()=>{await analysis.release(room);await new Promise(r=>server.close(r));});
+  const req=(route,options={},token='token-a')=>fetch('http://127.0.0.1:'+server.address().port+route+(route.includes('?')?'&':'?')+'room='+room.code,{...options,headers:{'X-Jam-Token':token,...options.headers}});
+  const imported=await(await req('/api/song',{method:'POST',headers:{'Content-Type':'audio/wav','X-Jam-Chart':'a'.repeat(32)},body:'áudio do pacote'})).json(),key=imported.song.key;
+  assert.match(key,/^c:/);assert.equal(analysis.state(room,key).status,'importing');
+  assert.equal((await req('/api/analysis/claim?key='+key,{method:'POST'})).status,409);
+  assert.equal((await req('/api/playlist?key='+key,{method:'POST'})).status,409);
+  const manifest={source:'chart',duration:6,title:'Exemplo',charts:{guitarra:{expert:{laneCount:5,notes:[{t:.125,dur:.625,lane:4}]}}}};
+  assert.equal((await req('/api/analysis/import?key='+key,{method:'POST',body:JSON.stringify(manifest)},'token-b')).status,409);
+  const response=await req('/api/analysis/import?key='+key,{method:'POST',body:JSON.stringify(manifest)});assert.equal(response.status,200,await response.clone().text());
+  assert.equal(analysis.state(room,key).source,'chart');assert.equal(analysis.state(room,key).status,'ready');
+  const shared=await(await req('/api/analysis/manifest?key='+key,{},'token-b')).json();assert.deepEqual(shared.charts.guitarra.expert.notes,manifest.charts.guitarra.expert.notes);assert.equal(shared.audioMode,'mix');
+  assert.equal((await req('/api/playlist?key='+key,{method:'POST'})).status,200);
+  for(const[q,status]of[['present','found'],['missing','not_found'],['offline','unavailable']])assert.equal((await(await req('/api/charts/search?q='+q)).json()).status,status);
+  assert.equal((await req('/api/charts/search?q=present',{},'invalid')).status,403);
+  assert.ok(analysis.stats().chartBytes>0);await analysis.release(room);assert.equal(analysis.stats().chartBytes,0);
+});

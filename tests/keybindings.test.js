@@ -1,0 +1,24 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+test('teclas personalizadas persistíveis: troca duplicadas, evita conflito com alternativa e restaura padrão',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+  const code=html.slice(html.indexOf('const KEYSETS ='),html.indexOf('// END CUSTOM KEYS'));
+  const c=vm.createContext({});vm.runInContext(code,c);
+  const run=expression=>vm.runInContext(expression,c);
+  assert.equal(run('activeKeysets().length'),2);
+  assert.equal(run("bindKey(0,'KeyH','H')"),true);
+  assert.equal(run('activeKeysets().length'),1);
+  assert.equal(run("bindKey(1,'KeyH','H')"),true);
+  assert.equal(run('KEYSETS[0].codes[0]'),'KeyS');
+  assert.equal(run('KEYSETS[0].codes[1]'),'KeyH');
+  assert.equal(run('applyKeys(JSON.parse(JSON.stringify(KEYSETS[0])))'),true);
+  assert.equal(run("bindKey(0,'Escape','Escape')"),false);
+  assert.equal(run("applyKeys({codes:Array(5).fill('KeyA'),labels:Array(5).fill('A')})"),false);
+  assert.equal(run('applyKeys(null)'),false);
+  assert.equal(run('applyKeys(DEFAULT_KEYS)'),true);
+  assert.equal(run('activeKeysets().length'),2);
+  assert.equal(run('KEYSETS[0].labels.join(" ")'),'A S D F G');
+});
