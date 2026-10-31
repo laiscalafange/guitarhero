@@ -14,7 +14,9 @@ module.exports = function createMusicService({ rooms, broadcast, youtubeProvider
   const snapshot = room => ({ songs: (room.playlist || []).map(s => s.meta), selectedKey: room.song?.meta.key || null, importing: !!room.uploading });
   const notify = room => broadcast(room, { type: 'playlist', playlist: snapshot(room) });
   function select(room, song) {
+    if (room.round) broadcast(room, { type: 'roundCancelled', round: room.round.r });
     room.round = null; // Cancela contagem regressiva pendente se a música mudou.
+    delete room.pendingRound;
     room.songRevision++;
     room.song = { ...song, meta: { ...song.meta, revision: room.songRevision } };
     broadcast(room, { type: 'song', song: room.song.meta });
@@ -56,7 +58,7 @@ module.exports = function createMusicService({ rooms, broadcast, youtubeProvider
     });
   }
   async function handle(req, res, url) {
-    if (!['/api/song', '/api/playlist', '/api/youtube/search', '/api/youtube/import','/api/charts/search','/api/charts/package'].includes(url.pathname)) return false;
+    if (!['/api/song', '/api/playlist', '/api/playlist/random', '/api/youtube/search', '/api/youtube/import','/api/charts/search','/api/charts/package'].includes(url.pathname)) return false;
     const room = rooms.get(url.searchParams.get('room') || '');
     const c = room && [...room.members].find(c => !c.closed && c.uploadToken === req.headers['x-jam-token']);
     if (!c) { error(res, 403, 'Entre na sala antes de acessar as músicas.'); req.resume(); return true; }
@@ -103,6 +105,17 @@ module.exports = function createMusicService({ rooms, broadcast, youtubeProvider
         try { json(res, { song: add(room, c, await youtubeProvider.download(id, room.abortController.signal)) }); }
         finally { imports--; room.uploading = false; room.abortController = null; notify(room); }
         return true;
+      }
+      if (url.pathname === '/api/playlist/random') {
+        if (req.method !== 'POST') { error(res, 405, 'Método inválido.'); req.resume(); return true; }
+        if (room.hostId !== c.id) { error(res, 403, 'Somente o host pode sortear a próxima música.'); req.resume(); return true; }
+        if (room.round) { error(res, 409, 'Aguarde a rodada começar antes de trocar de música.'); req.resume(); return true; }
+        const ready = room.playlist.filter(s => canSelect(room, s.meta.key));
+        const choices = ready.length > 1 ? ready.filter(s => s.meta.key !== room.song?.meta.key) : ready;
+        if (!choices.length) { error(res, 409, 'Ainda não há músicas prontas na fila.'); req.resume(); return true; }
+        const song = choices[crypto.randomInt(choices.length)];
+        select(room, song);
+        json(res, { song: room.song.meta }); req.resume(); return true;
       }
       if (url.pathname === '/api/playlist') {
         if (req.method === 'GET') { json(res, snapshot(room)); return true; }

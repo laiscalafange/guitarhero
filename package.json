@@ -9,7 +9,7 @@
     "setup:youtube": "node scripts/setup-youtube.js",
     "build:ai": "node scripts/build-ai.js",
     "build": "npm run build:ai",
-    "test:core": "node --test tests/ai-backend.test.js tests/analysis-queue.test.js tests/analysis.test.js tests/background-preparation.test.js tests/chart-library-api.test.js tests/charts.test.js tests/keybindings.test.js tests/multiplayer.test.js tests/package-download.test.js tests/render-lanes.test.js tests/youtube.test.js"
+    "test:core": "node --test tests/audio-settings.test.js tests/ai-backend.test.js tests/analysis-queue.test.js tests/analysis.test.js tests/background-preparation.test.js tests/chart-library-api.test.js tests/gameplay-features.test.js tests/charts.test.js tests/keybindings.test.js tests/multiplayer.test.js tests/package-download.test.js tests/render-lanes.test.js tests/youtube.test.js"
   },
   "engines": {
     "node": ">=22"

@@ -114,10 +114,10 @@ test('escolher um exemplo preserva a playlist; esvaziar a sala limpa os áudios'
 test('sincronização de rodada: só host inicia, apenas jogadores prontos e sem duplicar o início', async () => {
   const a = await connect('sync-verified'), b = await connect('sync-verified');
   const presence = (c, data) => c.ws.send(JSON.stringify({type:'presence',data}));
-  presence(a, {n:'Host',i:'guitarra',d:'facil',on:true,sg:'rock',hs:'rock'});
-  presence(b, {n:'Amigo',i:'baixo',d:'facil',on:true,sg:'rock'});
+  presence(a, {n:'Host',i:'guitarra',d:'facil',l:4,on:true,sg:'rock',hs:'rock'});
+  presence(b, {n:'Amigo',i:'baixo',d:'facil',l:3,on:true,sg:'rock'});
   await until(() => a.messages.some(m=>m.type==='peers' && m.peers.length===2 && m.peers.every(p=>p.presence.sg==='rock')));
-  const roster=[{p:a.id,n:'Host',i:'guitarra',d:'facil'},{p:b.id,n:'Amigo',i:'baixo',d:'facil'}];
+  const roster=[{p:a.id,n:'Host',i:'guitarra',d:'facil',l:4},{p:b.id,n:'Amigo',i:'baixo',d:'facil',l:3}];
   b.send('go',{r:11,sg:'rock',roster});
   b.send('start',{r:11,at:Date.now()+4000});
   await sleep(80);
@@ -125,6 +125,11 @@ test('sincronização de rodada: só host inicia, apenas jogadores prontos e sem
   a.send('go',{r:12,sg:'rock',roster:roster.slice(0,1)});
   await sleep(80);
   assert.equal(a.messages.some(m=>m.type==='event'&&m.event==='go'),false);
+  a.send('go',{r:13,sg:'rock',roster});
+  await sleep(50);
+  assert.equal(a.messages.some(m=>m.type==='event'&&m.event==='go'&&m.data.r===13),false,'host precisa esperar os prontos');
+  presence(a,{ready:true}); presence(b,{ready:true});
+  await until(()=>a.messages.find(m=>m.type==='peers'&&m.peers.length===2&&m.peers.every(p=>p.presence.ready)));
   a.send('go',{r:13,sg:'rock',roster});
   await until(()=>a.messages.find(m=>m.type==='event'&&m.event==='go'&&m.data.r===13));
   a.send('start',{r:13,at:Date.now()+4000}); // Amigo ainda não está pronto.
@@ -138,13 +143,21 @@ test('sincronização de rodada: só host inicia, apenas jogadores prontos e sem
   a.send('start',{r:13,at});
   await sleep(80);
   assert.equal(b.messages.filter(m=>m.type==='event'&&m.event==='start'&&m.data.r===13).length,1);
+  await until(()=>b.messages.find(m=>m.type==='history'&&m.rounds[0]?.r===13));
+  presence(a,{st:{r:13,sc:1800,ms:3,mx:12,fin:1}});
+  presence(b,{st:{r:13,sc:2400,ms:1,mx:15,fin:1}});
+  const final=await until(()=>b.messages.findLast(m=>m.type==='history'&&m.rounds[0]?.r===13&&m.rounds[0].players.every(p=>p.fin)));
+  assert.deepEqual(final.rounds[0].players.map(p=>p.score),[1800,2400]);
+  assert.equal(final.rounds[0].players[1].lanes,3);
+  const newcomer=await connect('sync-verified');
+  assert.deepEqual(newcomer.history[0].players.map(p=>p.score),[1800,2400]);
 });
 
 test('trocar a música cancela início de rodada anterior',async()=>{
   const c=await connect('changing-song');
-  c.ws.send(JSON.stringify({type:'presence',data:{n:'Membro',i:'guitarra',d:'facil',on:true,sg:'rock',hs:'rock'}}));
+  c.ws.send(JSON.stringify({type:'presence',data:{n:'Membro',i:'guitarra',d:'facil',l:4,on:true,sg:'rock',hs:'rock',ready:true}}));
   await until(()=>c.messages.find(m=>m.type==='peers'&&m.peers[0]?.presence.hs==='rock'));
-  c.send('go',{r:20,sg:'rock',roster:[{p:c.id,n:'Membro',i:'guitarra',d:'facil'}]});
+  c.send('go',{r:20,sg:'rock',roster:[{p:c.id,n:'Membro',i:'guitarra',d:'facil',l:4}]});
   await until(()=>c.messages.find(m=>m.type==='event'&&m.event==='go'&&m.data.r===20));
   c.send('demo',{id:'funk'});
   await until(()=>c.messages.find(m=>m.type==='song'&&m.song.key==='funk'));
@@ -152,4 +165,72 @@ test('trocar a música cancela início de rodada anterior',async()=>{
   c.send('start',{r:20,at:Date.now()+4000});
   await sleep(80);
   assert.equal(c.messages.some(m=>m.type==='event'&&m.event==='start'),false);
+});
+
+test('host passa automaticamente ao próximo jogador quando sai e o novo host pode iniciar', async () => {
+  const a = await connect('host-handoff'), b = await connect('host-handoff'), c = await connect('host-handoff');
+  const presence = (client, data) => client.ws.send(JSON.stringify({ type: 'presence', data }));
+  for (const [client, name] of [[a,'Dono'],[b,'Segundo'],[c,'Terceiro']])
+    presence(client, { n:name, i:'guitarra', d:'facil', l:5, on:true, sg:'rock', hs:'rock', ready:true });
+  await until(() => c.messages.some(m => m.type === 'peers' && m.peers.length === 3 && m.peers.every(p => p.presence.sg === 'rock')));
+  assert.equal((await until(() => c.messages.find(m => m.type === 'peers' && m.peers.length === 3 && m.hostId))).hostId, a.id);
+  const roster = [{p:a.id,i:'guitarra',d:'facil',l:5}, {p:b.id,i:'guitarra',d:'facil',l:5}, {p:c.id,i:'guitarra',d:'facil',l:5}];
+  a.send('go', { r: 777, sg:'rock', roster });
+  await until(() => b.messages.some(m => m.type === 'event' && m.event === 'go' && m.data.r === 777));
+  a.ws.close();
+  await until(() => c.messages.some(m => m.type === 'peers' && m.hostId === b.id && m.peers.length === 2));
+  await until(() => b.messages.some(m => m.type === 'roundCancelled' && m.round === 777));
+  assert.equal(c.messages.findLast(m => m.type === 'peers').hostId, b.id);
+  b.send('go', { r: 778, sg:'rock', roster: roster.slice(1) });
+  await until(() => c.messages.some(m => m.type === 'event' && m.event === 'go' && m.data.r === 778));
+  c.send('start', { r:778, at:Date.now()+3000 }); // terceiro não é host
+  await sleep(40);
+  assert.equal(b.messages.some(m => m.type === 'event' && m.event === 'start' && m.data.r === 778), false);
+  presence(b, {rd:778}); presence(c, {rd:778});
+  await until(() => b.messages.some(m => m.type === 'peers' && m.peers.length === 2 && m.peers.every(p=>p.presence.rd===778)));
+  b.send('start', {r:778, at: Date.now()+3000});
+  await until(() => c.messages.some(m => m.type === 'event' && m.event === 'start' && m.data.r === 778));
+  b.ws.close();
+  await until(() => c.messages.some(m => m.type === 'peers' && m.peers.length === 1 && m.hostId === c.id));
+  assert.equal(c.messages.filter(m => m.type === 'roundCancelled' && m.round === 778).length, 0, 'Uma rodada já iniciada não deve ser cancelada');
+  presence(c,{ready:true});
+  await until(()=>c.messages.findLast(m=>m.type==='peers'&&m.peers.length===1&&m.peers[0].presence.ready));
+  c.send('go', {r:779, sg:'rock', roster:roster.slice(2)});
+  await until(() => c.messages.some(m => m.type === 'event' && m.event === 'go' && m.data.r === 779));
+});
+
+
+test('sortear música pronta da fila: somente host, nunca em análise, evita repetir', async () => {
+  const a = await connect('shuffle-test'), b=await connect('shuffle-test');
+  const x=await upload(a,'shuffle-x','X.wav');
+  const y=await upload(b,'shuffle-y','Y.wav');
+  const deniedPending=await a.request('/api/playlist/random',{method:'POST'});
+  assert.equal(deniedPending.status,409);
+  await prepare(a,x.key); await prepare(b,y.key);
+  const forbidden=await b.request('/api/playlist/random',{method:'POST'});
+  assert.equal(forbidden.status,403);
+  const chosen=await a.request('/api/playlist/random',{method:'POST'});
+  assert.equal(chosen.status,200);
+  const first=(await chosen.json()).song.key;
+  assert.ok([x.key,y.key].includes(first));
+  await until(()=>b.messages.find(m=>m.type==='song'&&m.song.key===first));
+  const next=(await(await a.request('/api/playlist/random',{method:'POST'})).json()).song.key;
+  assert.notEqual(first,next);
+  await until(()=>b.messages.find(m=>m.type==='song'&&m.song.key===next));
+});
+
+test('pronto é cancelado ao trocar instrumento ou quantidade de teclas',async()=>{
+  const a=await connect('ready-reset');
+  const presence=d=>a.ws.send(JSON.stringify({type:'presence',data:d}));
+  presence({n:'Pessoa',i:'guitarra',d:'facil',l:4,on:true,sg:'rock',hs:'rock',ready:true});
+  await until(()=>a.messages.findLast(m=>m.type==='peers'&&m.peers[0]?.presence.ready));
+  presence({l:3});
+  await until(()=>a.messages.findLast(m=>m.type==='peers'&&m.peers[0]?.presence.l===3&&!m.peers[0].presence.ready));
+  a.send('go',{r:991,sg:'rock',roster:[{p:a.id,i:'guitarra',d:'facil',l:3}]});
+  await sleep(70);
+  assert.equal(a.messages.some(m=>m.type==='event'&&m.event==='go'&&m.data.r===991),false);
+  presence({ready:true});
+  await until(()=>a.messages.findLast(m=>m.type==='peers'&&m.peers[0]?.presence.ready));
+  a.send('go',{r:991,sg:'rock',roster:[{p:a.id,i:'guitarra',d:'facil',l:3}]});
+  await until(()=>a.messages.find(m=>m.type==='event'&&m.event==='go'&&m.data.r===991));
 });
