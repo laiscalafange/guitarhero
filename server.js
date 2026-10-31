@@ -68,19 +68,31 @@ function broadcast(room, msg) { for (const c of room.members) send(c, msg); }
 function roomSnapshot(room) {
   return [...room.members].map(c => ({ peer: c.id, presence: c.presence }));
 }
-function announce(room) { broadcast(room, { type: 'peers', peers: roomSnapshot(room) }); }
+function announce(room) { broadcast(room, { type: 'peers', peers: roomSnapshot(room), hostId: room.hostId }); }
 function drop(c) {
   if (c.closed) return;
   c.closed = true;
   if (c.room) {
-    c.room.members.delete(c);
-    analysis.peerLeft(c.room,c.id);
-    if (!c.room.members.size) {
-      music.releaseRoom(c.room);
-      analysis.release(c.room);
-      rooms.delete(c.room.code);
+    const room = c.room;
+    room.members.delete(c);
+    if (room.hostId === c.id) {
+      // Quem entrou primeiro entre os presentes assume, sem depender do navegador.
+      room.hostId = room.members.values().next().value?.id || null;
+      if (room.round) {
+        // Uma rodada ainda não iniciada pelo host antigo não pode ficar bloqueada.
+        const cancelled = room.round.r;
+        room.round = null;
+        delete room.pendingRound;
+        broadcast(room, { type: 'roundCancelled', round: cancelled });
+      }
     }
-    else announce(c.room);
+    analysis.peerLeft(room,c.id);
+    if (!room.members.size) {
+      music.releaseRoom(room);
+      analysis.release(room);
+      rooms.delete(room.code);
+    }
+    else announce(room);
   }
   try { c.socket.destroy(); } catch {}
 }
@@ -118,7 +130,7 @@ function applyPresence(c, d) {
   }
   announce(c.room);
 }
-function isHost(c) { return c === c.room.members.values().next().value; }
+function isHost(c) { return c.room.hostId === c.id; }
 function handleText(c, text) {
   let m;
   try { m = JSON.parse(text); } catch { return; }
@@ -230,13 +242,14 @@ server.on('upgrade', (req, socket, head) => {
   if ((!room && rooms.size >= MAX_ROOMS) || (room && room.members.size >= MAX_PEERS)) {
     socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return;
   }
-  if (!room) { room = { code, nextSeq: 1, members: new Set(), playlist: [], songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
+  if (!room) { room = { code, hostId: null, nextSeq: 1, members: new Set(), playlist: [], songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
   const accept = crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   socket.setNoDelay(true);
   const c = { socket, room, id: crypto.randomBytes(8).toString('hex'), uploadToken: crypto.randomBytes(24).toString('hex'), buffer: Buffer.alloc(0), closed: false,
     presence: { seq: room.nextSeq++ }, parts: [], partSize: 0, alive: Date.now(), lastPong: Date.now() };
   room.members.add(c);
+  if (!room.hostId) room.hostId = c.id;
   socket.on('data', b => receive(c, b));
   socket.on('close', () => drop(c));
   socket.on('error', () => drop(c));
