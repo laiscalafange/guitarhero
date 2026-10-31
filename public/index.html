@@ -1363,6 +1363,8 @@ function renderDemos() {
 function renderStrips() {
   el.strips.innerHTML = S.players.slice(0, 1).map((p, i) => {
     const lanes=p.lanes || 4;
+    // Em partituras importadas, mostre apenas as dificuldades que existem.
+    const imported = S.song?.analysis?.charts?.[p.instr] || null;
     return '<div class="strip' + (p.on ? ' on' : '') + '" style="--acc:' + ACC[p.instr] + '" data-i="' + i + '">' +
       '<div class="strip-head"><span class="strip-n">J' + (i + 1) + '</span>' +
       '<button type="button" class="toggle" role="switch" aria-checked="' + p.on + '" data-act="toggle" aria-label="Jogador ' + (i + 1) + ' na banda">' + (p.on ? 'Na banda' : 'Fora') + '</button></div>' +
