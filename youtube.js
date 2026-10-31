@@ -8,8 +8,40 @@ const MAX_AUDIO = 25 * 1024 * 1024;
 const MAX_DURATION = 15 * 60;
 const localBinary = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 const executable = process.env.YT_DLP_PATH || (fs.existsSync(localBinary) ? localBinary : 'yt-dlp');
-const common = ['--ignore-config', '--no-playlist', '--no-warnings', '--no-progress', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1', '--no-js-runtimes', '--js-runtimes', 'node:' + process.execPath];
+const common = ['--ignore-config', '--no-playlist', '--no-progress', '--socket-timeout', '20', '--retries', '1', '--extractor-retries', '1', '--no-js-runtimes', '--js-runtimes', 'node:' + process.execPath];
 
+// Mensagens específicas, sem expor dados internos, cookies ou URLs de mídia assinadas.
+function youtubeFailure(stderr) {
+  const detail = String(stderr || '');
+  if (/sign in to confirm|not a bot|captcha|automated queries|unusual traffic/i.test(detail)) {
+    return { code: 'verificacao', message: 'O YouTube está exigindo verificação do servidor. Isso pode acontecer com o IP do Render; executar setup:youtube novamente não resolve. Use um arquivo de áudio do PC.' };
+  }
+  if (/\b429\b|too many requests|rate[- ]limit/i.test(detail)) {
+    return { code: 'limite', message: 'O YouTube limitou as tentativas do servidor (HTTP 429). Aguarde antes de tentar novamente ou use um arquivo do PC.' };
+  }
+  if (/\b403\b|forbidden|access denied/i.test(detail)) {
+    return { code: '403', message: 'O YouTube recusou a transferência para o servidor (HTTP 403). Pode ser uma restrição ao IP do Render; tente um arquivo de áudio do PC.' };
+  }
+  if (/confirm your age|age.restrict|requires age/i.test(detail)) {
+    return { code: 'idade', message: 'O YouTube restringiu este vídeo por idade. Escolha um vídeo público sem restrições ou envie o áudio do PC.' };
+  }
+  if (/private video|members.only|login required|login to watch|sign in to watch/i.test(detail)) {
+    return { code: 'privado', message: 'Este vídeo exige login, é privado ou restrito a membros. Escolha um vídeo público ou envie um arquivo do PC.' };
+  }
+  if (/max.filesize|larger than/i.test(detail)) {
+    return { code: 'tamanho', message: 'O áudio ultrapassa 25 MB. Escolha outro vídeo.' };
+  }
+  if (/js challenge|challenge solving|signature extraction|javascript runtime|js runtime|yt-dlp-ejs|n challenge/i.test(detail)) {
+    return { code: 'javascript', message: 'Falha no processamento do YouTube pelo yt-dlp. Confira o Node.js 22+ e a versão do yt-dlp no servidor.' };
+  }
+  if (/requested format is not available|no video formats found/i.test(detail)) {
+    return { code: 'formato', message: 'Não há um formato de áudio compatível disponível para este vídeo. Tente outro ou envie o arquivo do PC.' };
+  }
+  if (/video unavailable|this video is unavailable|video has been removed|video is unavailable|not available in your country/i.test(detail)) {
+    return { code: 'indisponivel', message: 'O vídeo está indisponível para este servidor ou foi removido. Tente outro vídeo público.' };
+  }
+  return { code: 'desconhecido', message: 'Falha ao importar a música do YouTube. Veja o código de falha nos Logs do Render ou envie um áudio do PC.' };
+}
 function run(args, signal, timeout = 90000) {
   return new Promise((resolve, reject) => {
     execFile(executable, [...common, ...args], { signal, timeout, windowsHide: true, maxBuffer: 5 * 1024 * 1024 }, (error, stdout, stderr) => {
@@ -17,12 +49,10 @@ function run(args, signal, timeout = 90000) {
       if (error.code === 'ENOENT') return reject(Error('YouTube não configurado no servidor. Execute npm run setup:youtube e reinicie o jogo.'));
       if (error.name === 'AbortError') return reject(Error('Importação cancelada: a sala foi encerrada.'));
       if (error.killed) return reject(Error('O YouTube demorou para responder. Tente outra música.'));
-      // Não expõe URLs assinadas, detalhes internos nem caminhos do servidor.
-      if (/sign in|bot|captcha|confirm your age|private video|unavailable|not available|403|429/i.test(stderr)) {
-        return reject(Error('O YouTube bloqueou o acesso ou este vídeo exige login/está indisponível. Tente outro vídeo ou um arquivo do PC.'));
-      }
-      if (/max.filesize|larger than/i.test(stderr)) return reject(Error('O áudio ultrapassa 25 MB. Escolha outro vídeo.'));
-      reject(Error('Não foi possível obter este áudio do YouTube. Tente outro vídeo ou atualize com npm run setup:youtube.'));
+      const failure = youtubeFailure(stderr);
+      // Imprime somente a categoria do erro, não logs completos do yt-dlp.
+      console.warn(`[youtube] Falha ${failure.code}; processo ${typeof error.code === 'number' ? error.code : 'erro'}`);
+      reject(Error(failure.message));
     });
   });
 }
