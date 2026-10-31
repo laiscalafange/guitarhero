@@ -3,6 +3,11 @@ services:
     name: jam-na-garagem-online
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm ci --include=dev && npm run build:ai && npm run setup:youtube
     startCommand: npm start
     healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=256

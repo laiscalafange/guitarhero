@@ -1,7 +1,7 @@
 /**
  * Jam na Garagem — servidor HTTP + WebSocket, sem dependências externas.
  * Mantém salas e o áudio da sala temporariamente em memória (sem armazenamento permanente).
- * Node.js 20+.
+ * Node.js 22+.
  */
 'use strict';
 const http = require('node:http');
@@ -12,83 +12,23 @@ const PORT = Number(process.env.PORT) || 3000;
 const MAX_PEERS = 8;
 const MAX_ROOMS = 300;
 const MAX_FRAME = 32768;
-const MAX_AUDIO = 25 * 1024 * 1024; // 25 MiB por música
-const MAX_AUDIO_TOTAL = 125 * 1024 * 1024; // limite global de arquivos simultâneos
-let audioBytes = 0;
-const audioTypes = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/flac', 'audio/x-flac', 'audio/aac', 'application/octet-stream']);
-const roomCodeOk = code => /^[a-z0-9-]{3,24}$/.test(code);
-function getClient(req, url) {
-  const r = rooms.get(url.searchParams.get('room') || '');
-  if (!r) return null;
-  const token = req.headers['x-jam-token'];
-  return [...r.members].find(c => !c.closed && c.uploadToken === token) || null;
-}
-function reportError(res, status, text) {
-  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-  res.end(text);
-}
-function notifySong(room) {
-  broadcast(room, { type: 'song', song: room.song ? room.song.meta : null });
-}
+const MAX_SOCKET_BACKLOG = 1024 * 1024; // Evita acumular mensagens para conexões lentas.
 const rooms = new Map();
 const html = path.join(__dirname, 'public', 'index.html');
+const analysis = require('./analysis-service')({ rooms, broadcast, announce });
+const music = require('./music-service')({ rooms, broadcast, onRemove: (room,key) => analysis.remove(room,key),onAdd:room=>analysis.enqueue(room),canSelect:(room,key)=>analysis.state(room,key).status==='ready' });
 
-const server = http.createServer((req, res) => {
-  const pathname = (req.url || '').split('?')[0];
-  if (pathname === '/api/song') {
-    const url = new URL(req.url, 'http://localhost');
-    const c = getClient(req, url);
-    if (!c) { reportError(res, 403, 'Entre na sala antes de enviar ou baixar uma música.'); req.resume(); return; }
-    const room = c.room;
-    if (req.method === 'GET') {
-      if (!room.song || !room.song.bytes) return reportError(res, 404, 'Não há áudio nesta sala.');
-      res.writeHead(200, {
-        'Content-Type': room.song.mime, 'Content-Length': room.song.bytes.length,
-        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'
-      });
-      res.end(room.song.bytes); return;
-    }
-    if (req.method !== 'POST') return reportError(res, 405, 'Método inválido.');
-    if (room.uploading) { reportError(res, 409, 'Alguém já está enviando uma música.'); req.resume(); return; }
-    const announced = Number(req.headers['content-length']);
-    if (Number.isFinite(announced) && announced > MAX_AUDIO) { reportError(res, 413, 'Música maior que o limite de 25 MB.'); req.resume(); return; }
-    const mime = String(req.headers['content-type'] || 'application/octet-stream').split(';')[0].toLowerCase();
-    if (!audioTypes.has(mime)) { reportError(res, 415, 'Tipo de áudio não permitido.'); req.resume(); return; }
-    let name;
-    try { name = encodeURIComponent(decodeURIComponent(String(req.headers['x-jam-name'] || 'Música')).slice(0, 90)); }
-    catch { name = encodeURIComponent('Música'); }
-    let size = 0, failed = false;
-    const chunks = [];
-    room.uploading = true;
-    const fail = (status, reason) => {
-      if (failed) return;
-      failed = true; room.uploading = false;
-      if (!res.writableEnded && !res.destroyed) reportError(res, status, reason);
-    };
-    req.on('data', chunk => {
-      if (failed) return;
-      size += chunk.length;
-      if (size > MAX_AUDIO) { fail(413, 'Música maior que o limite de 25 MB.'); req.destroy(); return; }
-      chunks.push(chunk);
-    });
-    req.on('aborted', () => fail(400, 'Envio interrompido.'));
-    req.on('error', () => fail(400, 'Erro no envio.'));
-    req.on('end', () => {
-      if (failed) return;
-      if (!size) return fail(400, 'Arquivo vazio.');
-      const oldSize = room.song?.bytes?.length || 0;
-      if (audioBytes - oldSize + size > MAX_AUDIO_TOTAL) return fail(507, 'Servidor com limite de músicas atingido. Tente mais tarde.');
-      const bytes = Buffer.concat(chunks);
-      const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 32);
-      const meta = { key: 'f:' + hash, name, size, revision: (room.songRevision || 0) + 1, by: c.id, kind: 'file' };
-      audioBytes += size - oldSize;
-      room.song = { bytes, mime, meta }; room.songRevision = meta.revision;
-      room.uploading = false;
-      notifySong(room);
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ song: meta }));
-    });
-    return;
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const pathname = url.pathname;
+  if (await analysis.handle(req, res, url)) return;
+  if (await music.handle(req, res, url)) return;
+  if (['/chart-engine.js', '/chart-import.js','/ai-client.js', '/ai-worker.js','/ai-worker-gpu.js'].includes(pathname) || pathname.startsWith('/vendor/') || pathname.startsWith('/models/')) {
+    const target = path.resolve(__dirname, 'public', '.' + pathname);
+    if (!target.startsWith(path.resolve(__dirname, 'public') + path.sep) || !/\.(m?js|wasm|json|bin)$/.test(target) || !fs.existsSync(target)) { res.writeHead(404); res.end(); return; }
+    const mime = { '.js':'text/javascript', '.mjs':'text/javascript', '.wasm':'application/wasm', '.json':'application/json', '.bin':'application/octet-stream' }[path.extname(target)];
+    res.writeHead(200, {'Content-Type':mime,'Cache-Control':/\.m?js$/.test(target)?'no-store':'public, max-age=3600','Cross-Origin-Resource-Policy':'same-origin','Cross-Origin-Embedder-Policy':'credentialless'});
+    fs.createReadStream(target).pipe(res); return;
   }
   if (pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -96,7 +36,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (pathname === '/' || pathname === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "frame-ancestors 'self'" });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "frame-ancestors 'self'", 'Cross-Origin-Opener-Policy':'same-origin', 'Cross-Origin-Embedder-Policy':'credentialless' });
     fs.createReadStream(html).on('error', () => { if (!res.headersSent) res.writeHead(500); res.end('Falha ao abrir o jogo'); }).pipe(res);
     return;
   }
@@ -117,9 +57,12 @@ const frame = (opcode, data = Buffer.alloc(0)) => {
 };
 
 function send(c, payload) {
-  if (!c.closed && c.socket.writable) {
-    try { c.socket.write(frame(1, JSON.stringify(payload))); } catch { drop(c); }
+  if (c.closed || !c.socket.writable) return;
+  if (c.socket.writableLength > MAX_SOCKET_BACKLOG) {
+    close(c, 1013, 'Conexao lenta');
+    return;
   }
+  try { c.socket.write(frame(1, JSON.stringify(payload))); } catch { drop(c); }
 }
 function broadcast(room, msg) { for (const c of room.members) send(c, msg); }
 function roomSnapshot(room) {
@@ -131,8 +74,10 @@ function drop(c) {
   c.closed = true;
   if (c.room) {
     c.room.members.delete(c);
+    analysis.peerLeft(c.room,c.id);
     if (!c.room.members.size) {
-      audioBytes -= c.room.song?.bytes?.length || 0;
+      music.releaseRoom(c.room);
+      analysis.release(c.room);
       rooms.delete(c.room.code);
     }
     else announce(c.room);
@@ -148,13 +93,14 @@ function close(c, code = 1000, message = '') {
   drop(c);
 }
 
-const allowedInstruments = new Set(['guitarra', 'baixo', 'bateria', 'teclado']);
+const allowedInstruments = new Set(['guitarra', 'baixo', 'bateria', 'teclado', 'vocal']);
 const allowedDifficulties = new Set(['facil', 'medio', 'dificil', 'expert']);
 function applyPresence(c, d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return;
   const p = c.presence;
   if (typeof d.n === 'string') p.n = d.n.trim().slice(0, 16) || 'Jogador';
-  if (allowedInstruments.has(d.i)) p.i = d.i;
+  const available = analysis.state(c.room,c.room.song?.meta.key);
+  if (allowedInstruments.has(d.i) && (available.status !== 'ready' || available.instruments.includes(d.i))) p.i = d.i;
   if (allowedDifficulties.has(d.d)) p.d = d.d;
   if (typeof d.on === 'boolean') p.on = d.on;
   for (const k of ['sg', 'hs', 'hn']) {
@@ -176,21 +122,49 @@ function isHost(c) { return c === c.room.members.values().next().value; }
 function handleText(c, text) {
   let m;
   try { m = JSON.parse(text); } catch { return; }
-  if (!m || typeof m !== 'object') return;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return;
   if (m.type === 'presence') { applyPresence(c, m.data); return; }
   if (m.type !== 'event' || !['go', 'start', 'ping', 'pong', 'hit', 'err', 'hold', 'demo'].includes(m.event)) return;
   if (m.event === 'demo') {
-    if (!m.data || !['rock', 'funk'].includes(m.data.id)) return;
-    audioBytes -= c.room.song?.bytes?.length || 0;
-    const meta = { key: m.data.id, name: m.data.id === 'rock' ? 'Garagem 120' : 'Ladeira 96', revision: (c.room.songRevision || 0) + 1, kind: 'demo', by: c.id };
-    c.room.song = { bytes: null, meta }; c.room.songRevision = meta.revision;
-    notifySong(c.room); return;
+    if (!m.data || !['rock', 'funk', 'voz'].includes(m.data.id)) return;
+
+    const meta = { key: m.data.id, name: m.data.id === 'rock' ? 'Garagem 120' : m.data.id === 'voz' ? 'Ensaio vocal' : 'Ladeira 96', revision: (c.room.songRevision || 0) + 1, kind: 'demo', by: c.id };
+    music.select(c.room, { bytes: null, meta }); return;
   }
   if (['go', 'start', 'pong'].includes(m.event) && !isHost(c)) return;
   if (!m.data || typeof m.data !== 'object' || Array.isArray(m.data)) return;
   if (['hit', 'err', 'hold'].includes(m.event) && m.data.i !== c.presence.i) return;
-  if (['go', 'start'].includes(m.event) && (!Number.isSafeInteger(m.data.r) || !c.presence.hs)) return;
-  if (JSON.stringify(m.data).length > 12000) return;
+  if (['go', 'start'].includes(m.event) && (!Number.isSafeInteger(m.data.r) || c.presence.hs !== c.room.song?.meta.key)) return;
+  if (m.event === 'go') {
+    const room = c.room;
+    if (m.data.sg !== room.song?.meta.key || !Array.isArray(m.data.roster)) return;
+    const active = [...room.members].filter(p => !p.closed && p.presence.on !== false && !!p.presence.n);
+    if (m.data.roster.length !== active.length || !active.length) return;
+    const rosterIds = new Set();
+    for (const item of m.data.roster) {
+      if (!item || typeof item.p !== 'string' || rosterIds.has(item.p)) return;
+      const peer = active.find(p => p.id === item.p);
+      if (!peer || peer.presence.sg !== room.song.meta.key || peer.presence.i !== item.i || peer.presence.d !== item.d) return;
+      rosterIds.add(item.p);
+    }
+    room.pendingRound = { r: m.data.r, roster: [...rosterIds] };
+  }
+  if (m.event === 'start') {
+    const round = c.room.round;
+    if (!round || round.r !== m.data.r || !Number.isFinite(m.data.at) ||
+        round.roster.some(id => {
+          const peer = [...c.room.members].find(p => p.id === id);
+          return peer && peer.presence.rd !== round.r;
+        })) return;
+    // O mesmo início não pode ser transmitido mais de uma vez.
+    c.room.round = null;
+  }
+  if (m.event === 'go' && c.room.song?.meta.kind === 'file') {
+    const available = analysis.state(c.room,c.room.song.meta.key);
+    if (available.status !== 'ready' || m.data.roster.some(p => !available.instruments.includes(p.i)||(available.difficulties&&!available.difficulties[p.i]?.includes(p.d)))) { delete c.room.pendingRound; return; }
+  }
+  if (JSON.stringify(m.data).length > 12000) { delete c.room.pendingRound; return; }
+  if (m.event === 'go') { c.room.round = c.room.pendingRound; delete c.room.pendingRound; }
   broadcast(c.room, { type: 'event', event: m.event, peer: c.id, data: m.data });
 }
 function receive(c, raw) {
@@ -256,7 +230,7 @@ server.on('upgrade', (req, socket, head) => {
   if ((!room && rooms.size >= MAX_ROOMS) || (room && room.members.size >= MAX_PEERS)) {
     socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return;
   }
-  if (!room) { room = { code, nextSeq: 1, members: new Set(), songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
+  if (!room) { room = { code, nextSeq: 1, members: new Set(), playlist: [], songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
   const accept = crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   socket.setNoDelay(true);
@@ -266,7 +240,7 @@ server.on('upgrade', (req, socket, head) => {
   socket.on('data', b => receive(c, b));
   socket.on('close', () => drop(c));
   socket.on('error', () => drop(c));
-  send(c, { type: 'welcome', id: c.id, code, token: c.uploadToken, song: room.song?.meta || null });
+  send(c, { type: 'welcome', id: c.id, code, token: c.uploadToken, song: room.song?.meta || null, playlist: music.snapshot(room) });
   announce(room);
   if (head.length) receive(c, head);
 });
