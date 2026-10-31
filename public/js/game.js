@@ -1,0 +1,1465 @@
+(function () {
+'use strict';
+// ====== ANALISADOR: áudio -> notas ======
+const INSTR = {
+  guitarra: { label: 'Guitarra', lanes: 5 },
+  baixo: { label: 'Baixo', lanes: 4 },
+  bateria: { label: 'Bateria', lanes: 4 },
+  teclado: { label: 'Teclado', lanes: 5 },
+  vocal: { label: 'Vocalista', lanes: 5 }
+};
+const DIFFS = {
+  facil: { label: 'Fácil', delta: 1.1, gap: 0.30, lanes: 3, gg: 0.20, gate: 1.0, win: 1.3 },
+  medio: { label: 'Médio', delta: 0.7, gap: 0.20, lanes: 4, gg: 0.10, gate: 0.8, win: 1.12 },
+  dificil: { label: 'Difícil', delta: 0.5, gap: 0.13, lanes: 5, gg: 0.0, gate: 0.55, win: 1.0 },
+  expert: { label: 'Expert', delta: 0.4, gap: 0.09, lanes: 5, gg: 0.0, gate: 0.3, win: 0.9 }
+};
+
+// Os exemplos ficam em /js/demo-songs.js
+const { DEMO_SONGS, synthSong, makeRng } = window.JamDemos;
+
+/* ================= JOGO ================= */
+const $ = s => document.querySelector(s);
+const KEYSETS = [
+  { codes: ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'], labels: ['A', 'S', 'D', 'F', 'G'] },
+  { codes: ['KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'], labels: ['H', 'J', 'K', 'L', 'Ç'] },
+  { codes: ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT'], labels: ['Q', 'W', 'E', 'R', 'T'] },
+  { codes: ['KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP'], labels: ['Y', 'U', 'I', 'O', 'P'] }
+];
+// BEGIN CUSTOM KEYS
+const DEFAULT_KEYS = {codes:KEYSETS[0].codes.slice(),labels:KEYSETS[0].labels.slice()};
+const KEY_STORE = 'guitaband-keys-v1';
+let customKeys = false, pendingKey = -1;
+function applyKeys(value) {
+  if(!value||!Array.isArray(value.codes)||!Array.isArray(value.labels)||value.codes.length!==5||value.labels.length!==5||
+    new Set(value.codes).size!==5||value.codes.some(code=>typeof code!=='string'||!code||code.length>32||['Escape','Tab','F5','F11','F12','MetaLeft','MetaRight'].includes(code))||
+    value.labels.some(label=>typeof label!=='string'||!label||label.length>24))return false;
+  KEYSETS[0].codes=value.codes.slice();KEYSETS[0].labels=value.labels.slice();
+  customKeys=value.codes.some((code,i)=>code!==DEFAULT_KEYS.codes[i]);return true;
+}
+function bindKey(index,code,label) {
+  if(!Number.isInteger(index)||index<0||index>=5)return false;
+  const next={codes:KEYSETS[0].codes.slice(),labels:KEYSETS[0].labels.slice()};
+  const other=next.codes.indexOf(code);
+  if(other>=0){next.codes[other]=next.codes[index];next.labels[other]=next.labels[index];}
+  next.codes[index]=code;next.labels[index]=label;
+  return applyKeys(next);
+}
+function activeKeysets(){return customKeys?[KEYSETS[0]]:[KEYSETS[0],KEYSETS[1]];}
+// END CUSTOM KEYS
+const ACC = { guitarra: '#ff5c7a', baixo: '#3fa7ff', bateria: '#ffc933', teclado: '#38e3b0', vocal: '#c69aff' };
+const GH = ['#2fd04a', '#f0323c', '#ffe033', '#2f7bff', '#ff8a1f']; // verde, vermelho, amarelo, azul, laranja (como no Guitar Hero)
+const LANE_COL = {
+  guitarra: GH, baixo: GH, teclado: GH, vocal: GH,
+  bateria: ['#ff8a1f', '#f0323c', '#ffe033', '#2f7bff', '#2fd04a']  // inclui a quinta pista das partituras importadas
+};
+const PAD_NAMES = ['BUMBO', 'CAIXA', 'CHIMBAL', 'PRATO', 'TOM / PRATO'];
+const FD = '"Big Shoulders Display","Arial Narrow",Impact,sans-serif';
+const FM = '"DM Mono",ui-monospace,Menlo,monospace';
+
+const el = {
+  setup: $('#setup'), stage: $('#stage'), cv: $('#cv'), strips: $('#strips'),
+  demos: $('#pan-demo'), status: $('#songStatus'), summary: $('#summary'), go: $('#go'),
+  look: $('#look'), lat: $('#lat'), latOut: $('#latOut'),
+  progBox: $('#progBox'), progFill: $('#progFill'), progText: $('#progText'),
+  hudTitle: $('#hudTitle'), hudFill: $('#hudFill'),
+  sheetPause: $('#sheetPause'), sheetEnd: $('#sheetEnd')
+};
+const g2 = el.cv.getContext('2d');
+
+const S = {
+  tab: 'demo', demo: 'rock', song: null, busy: false, ai:null, analysisState:{status:'idle'},
+  players: [
+    { on: true, instr: 'guitarra', diff: 'medio', lanes: 4 },
+    { on: true, instr: 'bateria', diff: 'medio' },
+    { on: false, instr: 'baixo', diff: 'medio' },
+    { on: false, instr: 'teclado', diff: 'medio' }
+  ],
+  look: 1.5, latency: 0, musicVolume: 100, keyVolume: 60
+};
+const STORE = 'jam-na-garagem-v2';
+function loadPrefs() {
+  try {
+    const r = JSON.parse(localStorage.getItem(STORE) || 'null');
+    if (!r) return;
+    if (Array.isArray(r.players)) r.players.slice(0, 4).forEach((p, i) => {
+      if (p && INSTR[p.instr] && DIFFS[p.diff]) S.players[i] = { on: !!p.on, instr: p.instr, diff: p.diff, lanes: [3,4,5].includes(p.lanes) ? p.lanes : 4 };
+    });
+    if ([2, 1.5, 1.1].includes(r.look)) S.look = r.look;
+    if (typeof r.latency === 'number') S.latency = Math.max(-200, Math.min(300, r.latency));
+    if (Number.isFinite(r.musicVolume)) S.musicVolume = Math.max(0, Math.min(100, Math.round(r.musicVolume)));
+    if (Number.isFinite(r.keyVolume)) S.keyVolume = Math.max(0, Math.min(100, Math.round(r.keyVolume)));
+  } catch (e) { /* sem armazenamento: segue com o padrão */ }
+}
+function savePrefs() {
+  try { localStorage.setItem(STORE, JSON.stringify({ players: S.players, look: S.look, latency: S.latency, musicVolume: S.musicVolume, keyVolume: S.keyVolume })); } catch (e) { /* ignora */ }
+}
+
+
+/* ====== MULTIPLAYER: WebSocket real, hospedado no mesmo servidor ====== */
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => +v || 0;
+// Transporte WebSocket isolado em /js/room-client.js.
+const connectRoom = code => window.JamConnectRoom(code, () => {
+  Net.connected = false;
+  $('#netStatus').textContent = 'Conexão com a sala perdida. Atualize a página para entrar novamente.';
+  $('#netStatus').className = 'status err';
+  el.go.disabled = true;
+});
+
+const Net = (() => {
+  const N = { joined: false, connected: false, offline: true, r: null, off: 0, rtt: 1e9, my: {}, name: '', code: '' }, bus = {};
+  N.now = () => performance.timeOrigin + performance.now();
+  N.on = (t, fn) => { if (N.r) N.r.on(t, fn); else (bus[t] ||= []).push(fn); };
+  N.emit = (t, d) => {
+    if (N.r) { if (N.connected) N.r.emit(t, d).catch(() => {}); }
+    else setTimeout(() => (bus[t] || []).forEach(f => f({ peer: 'me', sameTab: true, isMe: true, data: d })), 0);
+  };
+  N.set = p => {
+    for (const k in p) { if (p[k] === null) delete N.my[k]; else N.my[k] = p[k]; }
+    if (N.r) { if (N.connected) N.r.presence(p).catch(() => {}); }
+    else onRoom();
+  };
+  N.peers = () => N.r ? (N.connected ? N.r.peers().filter(p => p.presence && p.presence.n) : []) : [{ peer: 'me', isMe: true, sameTab: true, presence: N.my }];
+  N.me = () => (N.peers().find(p => p.sameTab) || {}).peer;
+  N.host = () => N.peers().find(p => p.peer === N.r?.hostId) || null;
+  N.history = () => N.r ? N.r.history() : [];
+  N.isHost = () => N.joined && N.connected && !!N.r?.hostId && N.r.hostId === N.r.id;
+  N.syncClock = () => {
+    if (N.isHost()) { N.off = 0; return; }
+    N.rtt = 1e9;
+    for (let i = 0; i < 8; i++) setTimeout(() => N.emit('ping', { id: i, t0: N.now() }), i * 180);
+  };
+  N.join = async (name, code, solo) => {
+    N.name = name; N.code = code;
+    N.r = await connectRoom(solo ? 'solo-' + Math.random().toString(36).slice(2, 12) : code);
+    N.offline = !!solo;
+    N.connected = true;
+    N.joined = true;
+    const me = S.players[0];
+    N.set({ n: name, i: me.instr, d: me.diff, l: me.lanes, on: me.on, ready: false, sg: S.song ? S.song.key : null });
+    if (N.r) N.r.onPeers(onRoom);
+    else N.set({ seq: 1 });
+    const fromHost = m => { const h = N.host(); return !!h && m.peer === h.peer; };
+    N.on('go', m => { if (fromHost(m)) onGo(m.data); });
+    N.on('start', m => { if (fromHost(m)) onStart(m.data); });
+    N.on('roundCancelled', onRoundCancelled);
+    N.on('history', renderHistory);
+    N.on('ping', m => { if (N.isHost() && !m.sameTab && m.data) N.emit('pong', { to: m.peer, id: m.data.id, t0: m.data.t0, th: N.now() }); });
+    N.on('pong', m => {
+      const d = m.data; if (!d || d.to !== N.me()) return;
+      const t1 = N.now(), rtt = t1 - d.t0;
+      if (rtt < N.rtt) { N.rtt = rtt; N.off = d.th + rtt / 2 - t1; }
+    });
+    N.on('hit', m => { if (!m.sameTab) onHit(m.data); });
+    N.on('hold', m => { if (!m.sameTab) onHold(m.data); });
+    N.on('err', m => { if (!m.sameTab) onErr(m.data, m); });
+    if (N.r) { S.ai=new JamAI({room:N.r,getContext:getCtx,onState:updateAnalysisState,onReady:analysisReady,onBackground:updateBackgroundPreparation,onQueue:renderAnalysisQueue,canProcess:()=>Net.isHost(),gpu:$('#gpuAnalysis').checked}); N.r.on('song', applyRoomSong); N.r.on('playlist', renderPlaylist); renderPlaylist(); applyRoomSong(N.r.currentSong); }
+    onRoom();
+  };
+  return N;
+})();
+function pushMe() { const p = S.players[0]; Net.set({ i: p.instr, d: p.diff, l: p.lanes, on: p.on, ready: false }); }
+function setLobbyNote(t) { el.progText.textContent = t || ''; }
+function rosterNow() {
+  const sg = S.song && S.song.key;
+  return Net.peers().filter(p => p.presence.on !== false && sg && p.presence.sg === sg && INSTR[p.presence.i] && DIFFS[p.presence.d])
+    .sort((a, b) => num(a.presence.seq) - num(b.presence.seq) || (a.peer < b.peer ? -1 : 1)).slice(0, 8)
+    .map(p => ({ p: p.peer, n: String(p.presence.n).slice(0, 16), i: p.presence.i, d: p.presence.d, l: p.presence.l }));
+}
+let followed = null, lastHost = null, previousHostId = null;
+let roundPrepRevision = 0;
+function onRoundCancelled(round) {
+  roundPrepRevision++;
+  if (S.prep?.r === round) {
+    S.prep = null;
+    Net.set({ rd: null });
+  }
+  if (!G) {
+    setLobbyNote('O host saiu durante a preparação. O novo host pode iniciar outra rodada.');
+    updateSummary();
+  }
+}
+function followHost() {
+  const h = Net.host();
+  if (!h || Net.isHost()) return;
+  const hs = h.presence.hs;
+  if (!hs || hs === followed) return;
+  followed = hs;
+  // A seleção vem do próprio servidor, não da presença do host.
+  // Mantido para compatibilidade com o modo solo.
+  if (Net.offline && DEMO_SONGS[hs]) { setTab('demo', true); pickDemo(hs); }
+}
+function hostWatch() {
+  const pr = S.prep;
+  if (!pr || !Net.isHost() || pr.sent) return;
+  const ps = Net.peers();
+  const ok = pr.roster.every(a => { const p = ps.find(x => x.peer === a.p); return !p || p.presence.rd === pr.r; });
+  if (ok) {
+    pr.sent = true;
+    setTimeout(() => {
+      // Evita iniciar uma partida antiga após troca de música/sala ou nova rodada.
+      if (S.prep !== pr || !Net.isHost() || !Net.connected || !pr.players ||
+          S.song?.key !== Net.r?.currentSong?.key) return;
+      const current = Net.peers();
+      if (pr.roster.some(player => {
+        const peer = current.find(p => p.peer === player.p);
+        return peer && peer.presence.rd !== pr.r;
+      })) { pr.sent = false; return; }
+      Net.emit('start', { r: pr.r, at: Net.now() + 3100 });
+    }, 1400);
+  }
+}
+function renderRoster() {
+  const h = Net.host(), hs = Net.r ? (Net.r.currentSong && Net.r.currentSong.key) : (S.song && S.song.key);
+  $('#roster').innerHTML = Net.peers().slice().sort((a, b) => num(a.presence.seq) - num(b.presence.seq)).map(p => {
+    const q = p.presence, activeSong = Net.r?.currentSong, st = q.on === false ? 'assistindo' :
+      (hs && q.sg !== hs ? 'recebendo música…' : (q.ready && q.readyRev === activeSong?.revision ? '✓ pronto' : 'aguardando pronto'));
+    return '<li style="--acc:' + (ACC[q.i] || '#9a9ec7') + '"><b>' + esc(q.n) + (p.sameTab ? ' (você)' : '') + (h && h.peer === p.peer ? ' · host' : '') + '</b><span>' +
+      (INSTR[q.i] ? INSTR[q.i].label : '') + ' · ' + (DIFFS[q.d] ? DIFFS[q.d].label : '') + ' · ' + (q.l || 4) + ' teclas</span><em>' + st + '</em></li>';
+  }).join('');
+}
+function renderHistory() {
+  const rounds = Net.history();
+  $('#historyEmpty').hidden = rounds.length > 0;
+  const table = $('#historyTable');
+  if (!rounds.length) { table.innerHTML = ''; return; }
+  const participants = new Map();
+  for (const round of rounds) for (const p of round.players || []) {
+    const label = p.name || 'Jogador';
+    const key = p.peer;
+    const current = participants.get(key) || { name: label, total: 0, played: 0 };
+    current.total += num(p.score); current.played++;
+    participants.set(key, current);
+  }
+  const leaders = [...participants.values()].sort((a,b) => b.total-a.total);
+  let out = '<thead><tr><th colspan="4">Total da sala</th></tr><tr><th>Jogador</th><th>Pontos acumulados</th><th>Rodadas</th><th>Média</th></tr></thead><tbody>';
+  out += leaders.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + p.total + '</td><td>' + p.played + '</td><td>' + Math.round(p.total/p.played) + '</td></tr>').join('');
+  out += '</tbody><thead><tr><th colspan="4">Resultados por rodada</th></tr><tr><th>Rodada / música</th><th>Jogador</th><th>Pontos</th><th>Erros</th></tr></thead><tbody>';
+  for (const round of rounds) for (const p of round.players || []) {
+    let song = round.song || 'Música'; try { song = decodeURIComponent(song); } catch {}
+    out += '<tr><td>' + esc(song) + '</td><td>' + esc(p.name) + (p.fin ? '' : p.left ? ' (saiu)' : ' (em andamento)') + '</td><td>' + num(p.score) + '</td><td>' + num(p.misses) + '</td></tr>';
+  }
+  table.innerHTML = out + '</tbody>';
+}
+function onRoom() {
+  if (!Net.joined) return;
+  const currentHostId = Net.r?.hostId || null;
+  const hostChanged = !!previousHostId && !!currentHostId && previousHostId !== currentHostId;
+  previousHostId = currentHostId;
+  const hf = Net.isHost();
+  if (hostChanged) {
+    Net.syncClock();
+    if (hf) {
+      $('#netStatus').className = 'status ok';
+      $('#netStatus').textContent = 'O anfitrião saiu. Você é o novo host da sala!';
+    } else {
+      const host = Net.host();
+      $('#netStatus').textContent = 'Novo host: ' + (host?.presence.n || 'jogador da sala') + '.';
+    }
+  }
+  S.ai?.schedule();
+  hostWatch();
+  if (G) {
+    if (G.state === 'end') $('#btnAgain').hidden = !hf;
+    return;
+  }
+  if (hf && S.song && Net.my.hs !== S.song.key && !S.busy) Net.set({ hs: S.song.key, hn: S.song.name });
+  if (hf !== lastHost) { lastHost = hf; renderDemos(); renderPlaylist(); }
+  renderRoster(); renderHistory(); updateSummary();
+}
+function onGo(d) {
+  if (!d || !Array.isArray(d.roster)) return;
+  if (G) quit();
+  if (S.busy) return;
+  const revision = ++roundPrepRevision;
+  d.roster = d.roster.filter(r => r && typeof r.p === 'string' && INSTR[r.i] && DIFFS[r.d] && [3,4,5].includes(r.l)).slice(0, 8).map(r => ({ p: r.p, n: String(r.n || '?').slice(0, 16), i: r.i, d: r.d, l: r.l }));
+  S.prep = null;
+  prepare(d, revision);
+  // Uma falha de rede não deve deixar o lobby travado para sempre.
+  setTimeout(() => {
+    const pr = S.prep;
+    if (!G && pr && pr.r === d.r) {
+      S.prep = null;
+      Net.set({ rd: null });
+      setLobbyNote('A rodada não começou. Confira a conexão e tente iniciar novamente.');
+      updateSummary();
+    }
+  }, 90000);
+}
+function onStart(d) {
+  const pr = S.prep;
+  if (!d || !pr || pr.r !== d.r || !pr.players || !Number.isFinite(d.at)) return;
+  S.prep = null;
+  enterStage(pr.players, pr.roster, pr.r, num(d.at));
+}
+function hostGo() {
+  if (!Net.isHost() || S.busy || !S.song?.analysis || S.prep) return;
+  const active = Net.peers().filter(p => p.presence.on !== false);
+  if (!active.length || active.some(p => p.presence.sg !== S.song.key)) {
+    setLobbyNote('Espere todos os participantes receberem a música antes de começar.'); return;
+  }
+  const roster = rosterNow();
+  if (!roster.length) return;
+  const revision = Net.r?.currentSong?.revision;
+  if (active.some(p => !p.presence.ready || p.presence.readyRev !== revision)) {
+    setLobbyNote('Espere todos clicarem em Estou pronto.'); return;
+  }
+  Net.emit('go', { r: Math.floor(Net.now()), sg: S.song.key, roster });
+}
+function teamSize(P) {
+  const me = Net.me(), ps = Net.peers();
+  return G.roster.filter(r => r.i === P.instr && r.p !== me && ps.some(q => q.peer === r.p)).length;
+}
+function onHit(d) {
+  if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
+  if (G.state === 'play' && G.tv >= (G.muteUntil[d.i] || 0)) setMutedI(d.i, false);
+  const P = G.players[0], l = d.l | 0, sourceLane = Number.isInteger(d.sl) ? d.sl : null;
+  if (P.instr !== d.i) return;
+  const list = sourceLane === null && l >= 0 && l < P.laneCount ? P.lane[l] : P.notes.map((_,i)=>i);
+  for (let k = 0; k < list.length; k++) {
+    const n = P.notes[list[k]];
+    if (n.t > num(d.t) + 0.1) break;
+    if ((sourceLane === null || n.sl === sourceLane) && (n.st === 0 || n.st === 6) && Math.abs(n.t - num(d.t)) <= 0.09) { n.st = n.dur ? 6 : 3; break; } // espera completar uma nota longa
+  }
+}
+function onHold(d) {
+  if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
+  const P = G.players[0], l = d.l | 0, sourceLane = Number.isInteger(d.sl) ? d.sl : null;
+  if (P.instr !== d.i) return;
+  const list = sourceLane === null && l >= 0 && l < P.laneCount ? P.lane[l] : P.notes.map((_,i)=>i);
+  for (const idx of list) {
+    const n = P.notes[idx];
+    if ((sourceLane === null || n.sl === sourceLane) && Math.abs(n.t - num(d.t)) <= 0.09 && (n.st === 0 || n.st === 6)) { n.st = 3; break; }
+  }
+}
+function onErr(d, m) {
+  if (!G || G.dead || G.state === 'end' || !d || d.r !== G.round || !INSTR[d.i]) return;
+  G.rflash[m.peer] = G.tv;
+  const t = performance.now();
+  if (t - (G.rerr[d.i] || -1e9) < 250) return;
+  G.rerr[d.i] = t;
+  if (d.m) { setMutedI(d.i, true); G.muteUntil[d.i] = G.tv + 0.45; }
+  if (d.s) playErrI(d.i);
+}
+function myStats(fin) { const P = G.players[0]; return { r: G.round, tot: P.notes.length, sc: P.score, cb: P.combo, mx: P.maxCombo, c: P.cnt.slice(), ms: P.miss, cv: P.cov, fin: fin ? 1 : 0 }; }
+function pushStats() { if (G && G.state !== 'end') Net.set({ st: myStats(false) }); }
+const cleanCode = v => String(v || '').toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+/, '').slice(0, 24);
+async function joinRoom(solo, fresh) {
+  const nick = ($('#nick').value || '').trim().slice(0, 16) || ('Jogador' + (10 + Math.floor(Math.random() * 90)));
+  const typed = cleanCode($('#code').value);
+  if (!solo && !fresh && !typed) {
+    $('#roomStatus').textContent = 'Digite o código da sala de seu amigo ou clique em “Criar sala nova”.';
+    $('#roomStatus').className = 'status err';
+    return;
+  }
+  const code = fresh ? 'jam-' + Math.random().toString(36).slice(2, 10) : typed;
+  $('#roomStatus').textContent = 'Conectando ao servidor da sala…';
+  $('#roomStatus').className = 'status';
+  ['#btnJoin', '#btnNew', '#btnSolo'].forEach(b => { $(b).disabled = true; });
+  try {
+    try { await getCtx().resume(); } catch (e) { /* áudio opcional nesta etapa */ }
+    await Net.join(nick, solo ? 'solo-local' : code, solo);
+    $('#roomPanel').hidden = true; $('#lobby').hidden = false;
+    if (!solo) location.hash = code;
+    $('#btnCopyInvite').hidden = solo;
+    $('#netStatus').className = 'status ok';
+    $('#netStatus').textContent = solo ? 'Modo solo ativo.' : 'Conectado à sala ' + code + '. Até 8 amigos podem jogar juntos.';
+    setLobbyNote(solo ? 'Toque para iniciar sua música.' : 'Compartilhe o link. Qualquer participante pode escolher e enviar a música; o host inicia para todos.');
+    onRoom();
+  } catch (e) {
+    console.error(e);
+    $('#roomStatus').textContent = e.message || 'Não foi possível entrar na sala.';
+    $('#roomStatus').className = 'status err';
+    ['#btnJoin', '#btnNew', '#btnSolo'].forEach(b => { $(b).disabled = false; });
+  }
+}
+
+let ctx = null, musicBus = null, keyBus = null;
+function getCtx() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    musicBus = ctx.createGain();
+    keyBus = ctx.createGain();
+    musicBus.connect(ctx.destination);
+    keyBus.connect(ctx.destination);
+    setAudioVolumes();
+  }
+  return ctx;
+}
+function setAudioVolumes() {
+  if (musicBus) musicBus.gain.value = S.musicVolume / 100;
+  if (keyBus) keyBus.gain.value = S.keyVolume / 100;
+}
+function updateVolume(which, value) {
+  const prop = which === 'music' ? 'musicVolume' : 'keyVolume';
+  S[prop] = Math.max(0, Math.min(100, Number(value) || 0));
+  for (const prefix of ['', 'stage']) {
+    const name = prefix ? prefix + (which === 'music' ? 'Music' : 'Key') + 'Volume' : prop;
+    const slider = $('#' + name), output = $('#' + name + 'Out');
+    slider.value = String(S[prop]);
+    output.textContent = S[prop] + '%';
+  }
+  setAudioVolumes();
+  savePrefs();
+}
+const tick = () => new Promise(r => setTimeout(r, 20));
+const fmtTime = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+
+/* ---------- música ---------- */
+function setStatus(msg, cls) { el.status.textContent = msg; el.status.className = 'status' + (cls ? ' ' + cls : ''); }
+function songFromBuffer(buf,name,style) { return {name,style,buffer:buf,sr:buf.sampleRate,duration:buf.duration,analysis:null,F:null}; }
+
+const demoCache = {};
+async function pickDemo(id, token = ++selectionToken) {
+  S.ai?.detach();
+  S.demo = id; S.song = null; Net.set({ sg: null }); updateSummary(); renderDemos();
+  setStatus('Gerando a música de exemplo…');
+  await tick();
+  if (!demoCache[id]) {
+    const d = synthSong(id, 44100);
+    const buf = getCtx().createBuffer(1, d.samples.length, d.sr);
+    buf.copyToChannel(d.samples, 0);
+    demoCache[id] = songFromBuffer(buf, d.name, DEMO_SONGS[id].style);
+    demoCache[id].analysis={version:1,engine:'Partitura do sintetizador',duration:buf.duration,events:d.events,instruments:Object.keys(d.events).filter(k=>d.events[k].length)};
+    demoCache[id].bpm=d.bpm; demoCache[id].F={beat:{per:60/d.bpm,ph:0}};
+    demoCache[id].stems = {};
+    for (const k in d.stems) { const b = getCtx().createBuffer(1, d.stems[k].length, d.sr); b.copyToChannel(d.stems[k], 0); demoCache[id].stems[k] = b; }
+    demoCache[id].rest = null; demoCache[id].exact = true;
+  }
+  if (token !== selectionToken) return;
+  S.song = demoCache[id]; S.song.key = id; Net.set({ sg: id });
+  analysisReady(S.song.analysis);
+  renderDemos();
+  setStatus('Pronta: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
+  updateSummary();
+}
+let selectionToken = 0, lastSongRevision = null;
+async function applyRoomSong(meta) {
+  if (!Net.joined || !Net.r || !meta) return;
+  if (lastSongRevision !== null && lastSongRevision !== meta.revision) Net.set({ ready: false });
+  lastSongRevision = meta.revision;
+  if (G || S.busy || (S.prep && S.prep.players)) {
+    setLobbyNote('Nova música escolhida na sala. Ela ficará disponível ao retornar ao lobby.');
+    return;
+  }
+  const token = ++selectionToken;
+  if(S.ai?.key!==meta.key)S.ai?.detach();
+  S.analysisState={status:'idle'};
+  if (pendingSongs.has(meta.key)) S.song = pendingSongs.get(meta.key);
+  if (S.song && S.song.key === meta.key) {
+    renderDemos();
+    Net.set({ sg: meta.key });
+    setStatus('Música sincronizada: ' + S.song.name, 'ok');
+    if(meta.kind==='file'){Net.set({sg:null});await followAnalysis(S.song);}else analysisReady(S.song.analysis);
+    renderRoster(); updateSummary(); return;
+  }
+  S.song = null; Net.set({ sg: null }); updateSummary();
+  renderDemos();
+  if (meta.kind === 'demo') {
+    await pickDemo(meta.key, token);
+    return;
+  }
+  updateAnalysisState({status:'idle',message:'Recebendo música antes de identificar os instrumentos…'});
+  setStatus('Recebendo “' + decodeURIComponent(meta.name) + '” da sala (' + (meta.size / (1024 * 1024)).toFixed(1) + ' MB)…');
+  try {
+    const ab = await Net.r.download(meta.key);
+    if (token !== selectionToken) return;
+    setStatus('Preparando áudio compartilhado…');
+    const buf = await getCtx().decodeAudioData(ab);
+    if (token !== selectionToken) return;
+    S.song = songFromBuffer(buf, decodeURIComponent(meta.name).replace(/\.[^.]+$/, ''), 'Arquivo compartilhado');
+    S.song.key = meta.key;
+    Net.set({ sg: null });
+    setStatus('Recebida: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
+    await followAnalysis(S.song);
+  } catch (e) {
+    if (token === selectionToken) setStatus('Falha ao baixar o áudio da sala: ' + e.message + '. Peça para enviar novamente.', 'err');
+  }
+  renderRoster(); updateSummary();
+}
+const pendingSongs = new Map();
+let addingFiles = false;
+async function loadFiles(files) {
+  if (!files.length || addingFiles || S.busy || G || !Net.r) return;
+  addingFiles = true; $('#fileIn').disabled = true;
+  try {
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) throw Error(file.name + ': o arquivo ultrapassa 25 MB.');
+      setLibraryStatus('Preparando ' + file.name + '…');
+      const ab = await file.arrayBuffer();
+      const buf = await getCtx().decodeAudioData(ab.slice(0));
+      if (buf.duration > 15 * 60) throw Error('O áudio deve ter até 15 minutos.');
+      const hashBytes = globalThis.crypto?.subtle ? await crypto.subtle.digest('SHA-256', ab) : null;
+      const hash = hashBytes ? [...new Uint8Array(hashBytes)].map(n => n.toString(16).padStart(2, '0')).join('').slice(0, 32) : null;
+      const song = songFromBuffer(buf, file.name.replace(/\.[^.]+$/, ''), 'Arquivo compartilhado');
+      song.key = hash ? 'f:' + hash : null;
+      if (song.key) pendingSongs.set(song.key, song);
+      try {
+        setLibraryStatus('Enviando ' + file.name + ' para a playlist…');
+        await Net.r.upload(file);
+        setLibraryStatus(file.name + ' adicionada à playlist.', 'ok');
+      } finally { pendingSongs.delete(song.key); }
+    }
+  } catch (e) { setLibraryStatus('Não foi possível adicionar: ' + e.message, 'err'); }
+  finally { addingFiles = false; $('#fileIn').disabled = false; $('#fileIn').value = ''; }
+}
+function setLibraryStatus(text, cls = '') {
+  $('#libraryStatus').textContent = text; $('#libraryStatus').className = 'status ' + cls;
+}
+function songName(meta) { try { return decodeURIComponent(meta.name); } catch { return meta.name; } }
+const catalogChecks=new Map();let catalogChain=Promise.resolve(),chartSearchToken=0,addingChart=false,downloadingChart=null,chartLibraryResults=[];
+function lookupCatalog(q,force=false){
+  const key=q.trim().slice(0,160);if(!force&&catalogChecks.has(key))return catalogChecks.get(key).promise;
+  const item={status:'checking'};catalogChecks.set(key,item);
+  item.promise=catalogChain.then(()=>Net.r.request('/api/charts/search',{query:key})).catch(()=>({status:'unavailable',results:[]})).then(result=>{Object.assign(item,result);renderPlaylist();renderSearchResults();return result;});
+  catalogChain=item.promise.catch(()=>{});return item.promise;
+}
+function catalogInfo(meta,job){
+  if(job?.source==='chart')return '<span class="music-meta ok">Partitura pronta importada · sem análise de notas por IA</span>';
+  if(job?.status==='importing')return '';
+  const q=songName(meta).slice(0,160);if(!Net.r||q.length<2)return '';
+  if(!catalogChecks.has(q))lookupCatalog(q);
+  const c=catalogChecks.get(q),label=c.status==='found'?'Partitura encontrada no catálogo · confira a versão':c.status==='not_found'?'Partitura não encontrada nesta busca':c.status==='unavailable'?'Catálogo indisponível · tente consultar novamente':'Consultando biblioteca de partituras…';
+  return '<span class="music-meta">'+label+'</span><button class="btn" type="button" data-library="'+esc(q)+'">'+(c.status==='found'?'Ver partituras':'Consultar biblioteca')+'</button>';
+}
+async function searchChartLibrary(event,q){
+  event?.preventDefault();q=(q||$('#chartQuery').value).trim();if(!Net.r||q.length<2||downloadingChart||addingChart)return;
+  $('#chartQuery').value=q;const token=++chartSearchToken;$('#chartStatus').textContent='Consultando a biblioteca…';$('#chartResults').innerHTML='';
+  const c=await lookupCatalog(q,true);if(token!==chartSearchToken)return;
+  $('#chartStatus').textContent=c.status==='found'?'Partituras encontradas. Clique em Importar pacote na versão desejada.':c.status==='not_found'?'Nenhuma partitura encontrada nesta busca. Você pode tentar outro nome ou usar a IA.':'Consulta indisponível. Tente novamente mais tarde; não foi possível confirmar a disponibilidade.';
+  chartLibraryResults=c.results||[];renderChartLibraryResults();
+}
+function renderChartLibraryResults(){
+  $('#chartResults').innerHTML=chartLibraryResults.map(item=>'<li class="music-row"><div class="music-info"><strong>'+esc(item.artist+' — '+item.name)+'</strong><span class="music-meta">'+esc(item.charter)+(item.duration?' · '+fmtTime(item.duration):'')+' · '+esc(item.instruments.map(i=>INSTR[i].label).join(', '))+'</span></div><div class="music-actions"><button class="btn solid" type="button" data-download-chart="'+esc(item.downloadId||'')+'"'+(!item.downloadId||downloadingChart||addingChart?' disabled':'')+'>'+(downloadingChart===item.downloadId?'Importando…':'Importar pacote')+'</button><a class="btn" href="'+esc(item.url)+'" target="_blank" rel="noopener noreferrer">Fonte</a></div></li>').join('');
+}
+async function importCatalogPackage(id){
+  const item=chartLibraryResults.find(r=>r.downloadId===id);if(!item||!Net.r||addingChart||downloadingChart||S.busy||G)return;
+  downloadingChart=id;renderChartLibraryResults();$('#chartFiles').disabled=$('#chartFolder').disabled=true;$('#chartDownloadProgress').hidden=false;$('#chartDownloadProgress').value=0;
+  try{
+    $('#chartStatus').textContent='Baixando o pacote de '+item.name+'…';
+    const file=await Net.r.downloadChartPackage(id,item.hasVideo,(bytes,total)=>{$('#chartDownloadProgress').value=total?bytes/total:0;$('#chartStatus').textContent='Baixando '+item.name+' · '+(bytes/1048576).toFixed(1)+' MB'+(total?' / '+(total/1048576).toFixed(1)+' MB':'')+'…';});
+    $('#chartDownloadProgress').hidden=true;await importChartFiles([file],true);
+  }catch(e){$('#chartStatus').textContent='Não foi possível importar o pacote: '+e.message;}
+  finally{downloadingChart=null;$('#chartDownloadProgress').hidden=true;$('#chartFiles').disabled=$('#chartFolder').disabled=false;renderChartLibraryResults();}
+}
+async function importChartFiles(files,continueInBackground=false){
+  if(!Net.r||!files.length||addingChart||(!continueInBackground&&(S.busy||G)))return;addingChart=true;$('#chartFiles').disabled=$('#chartFolder').disabled=true;
+  try{
+    $('#chartStatus').textContent='Lendo partitura e áudio do pacote…';
+    const prepared=await JamChartImport.prepare(files,getCtx);
+    $('#chartStatus').textContent='Compartilhando áudio e notas prontas com a sala…';
+    const meta=await Net.r.upload(prepared.file,{chartId:prepared.chartId});
+    const state=await Net.r.request('/api/analysis',{key:meta.key});
+    if(state.status!=='ready')await Net.r.request('/api/analysis/import',{key:meta.key,method:'POST',body:prepared.manifest});
+    await S.ai.refreshQueue();$('#chartStatus').textContent='Partitura importada. Escolha a música em Prontas para jogar.'+(prepared.manifest.warnings.length?' '+prepared.manifest.warnings.join(' '):'');
+  }catch(e){$('#chartStatus').textContent='Não foi possível importar: '+e.message;}
+  finally{addingChart=false;$('#chartFiles').disabled=$('#chartFolder').disabled=false;$('#chartFiles').value=$('#chartFolder').value='';}
+}
+function renderPlaylist() {
+  const list = Net.r?.playlist || { songs: [] };
+  const jobs=new Map((S.analysisQueue?.jobs||[]).map(job=>[job.key,job]));
+  const ready=list.songs.filter(meta=>jobs.get(meta.key)?.status==='ready');
+  const order=(S.analysisQueue?.jobs||[]).filter(job=>job.status!=='ready').map(job=>job.key);
+  const pending=list.songs.filter(meta=>jobs.get(meta.key)?.status!=='ready').sort((a,b)=>order.indexOf(a.key)-order.indexOf(b.key));
+  $('#playlistCount').textContent = list.songs.length + ' / 10';
+  $('#readyCount').textContent=ready.length;$('#pendingCount').textContent=pending.length;
+  $('#playlistEmpty').hidden = ready.length > 0;
+  $('#randomSong').disabled = !Net.isHost() || !ready.length || !!G || S.busy || !!S.prep;
+  $('#pendingEmpty').hidden = pending.length > 0;
+  $('#processQueue').hidden=!pending.length||Net.isHost()||!!S.ai?.useThisDevice;
+  $('#queueDevice').textContent=(Net.isHost()||S.ai?.useThisDevice?'Este aparelho está habilitado para preparar a fila.':'O anfitrião prepara a fila. Você também pode habilitar este aparelho.')+' Mantenha a aba aberta.';
+  $('#playlist').innerHTML = ready.map(meta => {
+    const selected = Net.r.currentSong?.key === meta.key;
+    return '<li class="music-row' + (selected ? ' selected' : '') + '"><div class="music-info"><strong>' + esc(songName(meta)) + '</strong><span class="music-meta">' +
+      (selected ? 'Selecionada · ' : '') + (meta.sourceId ? 'YouTube · ' : 'Arquivo · ') + (meta.size / 1048576).toFixed(1) + ' MB' + (meta.duration ? ' · ' + fmtTime(meta.duration) : '') +
+      '</span>'+catalogInfo(meta,jobs.get(meta.key))+'</div><div class="music-actions"><button type="button" class="btn" data-select="' + esc(meta.key) + '" aria-pressed="' + selected + '">' + (selected ? 'Selecionada' : 'Escolher') +
+      '</button><button type="button" class="btn" data-remove="' + esc(meta.key) + '" aria-label="Remover ' + esc(songName(meta)) + '">Remover</button></div></li>';
+  }).join('');
+  let position=0;
+  $('#pendingPlaylist').innerHTML=pending.map(meta=>{
+    const job=jobs.get(meta.key)||{status:'queued'},running=job.status==='running',importing=job.status==='importing',error=job.status==='error';
+    const label=importing?'Importando partitura pronta…':running?'Analisando · '+Math.round((job.progress||0)*100)+'%':error?'Falhou · tente novamente':(++position)+'º na fila';
+    return '<li class="music-row"><div class="music-info"><strong>'+esc(songName(meta))+'</strong><span class="music-meta">'+esc(label)+' · '+(meta.size/1048576).toFixed(1)+' MB</span>'+
+      (job.message?'<span class="music-meta">'+esc(job.message)+'</span>':'')+catalogInfo(meta,job)+(running?'<progress max="1" value="'+(job.progress||0)+'" style="width:100%" aria-label="Progresso da análise"></progress>':'')+
+      (job.error?'<details class="music-meta"><summary>Detalhes do erro</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(job.error.stage+'\n'+job.error.details)+'</pre></details>':'')+
+      '</div><div class="music-actions">'+(job.error?'<button class="btn" type="button" data-copy-error="'+esc(meta.key)+'">Copiar erro</button>':'')+'<button class="btn" type="button" data-prioritize="'+esc(meta.key)+'"'+(running||importing?' disabled':'')+'>'+(importing?'Importando':running?'Em análise':error?'Tentar agora':'Analisar agora')+'</button><button class="btn" type="button" data-remove="'+esc(meta.key)+'">Remover</button></div></li>';
+  }).join('');
+}
+function renderAnalysisQueue(queue) {
+  S.analysisQueue=queue;renderPlaylist();
+  const active=queue.jobs.find(job=>job.status==='running');
+  if(active)updateBackgroundPreparation({...active,name:S.ai?.nameOf(active.key)||'Música'});
+  else if(S.backgroundPreparation?.status==='running'){
+    const previous=S.backgroundPreparation,job=queue.jobs.find(j=>j.key===previous.key);
+    updateBackgroundPreparation({...previous,...job,status:job?.status||'removed'});
+  }
+  S.ai?.schedule();
+}
+let searchResults = [], searching = false, importingId = null;
+function youtubeStatus(text, cls = '') { $('#youtubeStatus').textContent = text; $('#youtubeStatus').className = 'status ' + cls; }
+function renderSearchResults() {
+  $('#youtubeResults').innerHTML = searchResults.map(item => '<li class="music-row"><div class="music-info"><strong>' + esc(item.title) + '</strong><span class="music-meta">' + esc(item.channel) +
+    (item.duration ? ' · ' + fmtTime(item.duration) : '') + '</span>'+catalogInfo({name:encodeURIComponent(item.title)})+'</div><div class="music-actions"><button class="btn" type="button" data-import="' + item.id + '"' + (importingId || item.unavailable ? ' disabled' : '') + '>' +
+    esc(item.unavailable || (importingId === item.id ? 'Importando…' : 'Importar áudio')) + '</button></div></li>').join('');
+}
+async function searchYoutube(e) {
+  e.preventDefault();
+  const query = $('#youtubeQuery').value.trim();
+  if (searching || !Net.r || query.length < 2) return;
+  searching = true; $('#youtubeSearch').disabled = true;
+  searchResults = []; renderSearchResults(); youtubeStatus('Pesquisando no YouTube…');
+  try {
+    searchResults = (await Net.r.request('/api/youtube/search', { query })).results;
+    renderSearchResults(); youtubeStatus(searchResults.length ? searchResults.length + ' resultados. Escolha um áudio para importar.' : 'Nenhum resultado. Tente outro nome.');
+  } catch (error) { youtubeStatus(error.message, 'err'); }
+  finally { searching = false; $('#youtubeSearch').disabled = false; }
+}
+async function importYoutube(id) {
+  if (importingId || !Net.r || S.busy || G) return;
+  importingId = id; renderSearchResults();
+  youtubeStatus('Importando o áudio para a sala… Isso pode levar alguns minutos.');
+  try {
+    await Net.r.request('/api/youtube/import', { method: 'POST', body: { id } });
+    youtubeStatus('Áudio adicionado à playlist. Aguarde a banda receber para tocar.', 'ok');
+  } catch (error) { youtubeStatus(error.message, 'err'); }
+  finally { importingId = null; renderSearchResults(); }
+}
+
+/* Instrumentos disponíveis vêm da partitura/IA da música, nunca de faixas de frequência da mistura. */
+function availableInstruments() { return S.song?.analysis?.instruments || []; }
+function ensureChartDifficulty(){const p=S.players[0],charts=S.song?.analysis?.charts?.[p.instr];if(charts&&!charts[p.diff]){p.diff=Object.keys(charts)[0];if(Net.joined)pushMe();}}
+function updateAnalysisState(state) {
+  S.analysisState=state;
+  const exact=!!S.song?.exact, ready=!!S.song?.analysis;
+
+  $('#analysisStatus').textContent=ready?'Música pronta'+(S.song?.analysis?.timing?.seconds?' em '+Math.round(S.song.analysis.timing.seconds)+' s':'')+'. Escolha sua função em J1.':state.message||'Esta música ainda precisa ser preparada com IA.';
+  $('#analysisProgress').hidden=state.status!=='running';$('#analysisProgress').value=state.progress||0;
+  $('#analyzeSong').hidden=exact||ready||state.status==='running';
+  $('#analyzeSong').disabled=!!S.ai?.task&&S.ai.task.key!==S.song?.key;
+  $('#cancelAnalysis').hidden=!S.ai?.task||S.ai.task.key!==S.song?.key;
+  $('#analysisHint').textContent=S.song?.analysis?.source==='chart'?'Partitura importada: tempos e dificuldades preservados. Áudio completo; erros não silenciam instrumentos individualmente.':exact?'Exemplo com notas e instrumentos conhecidos.':ready?'A detecção é uma estimativa: instrumentos muito baixos podem não ser identificados.':'Esta música entra na fila automática. A primeira preparação baixa um modelo de 110 MB. Você pode jogar outra que já esteja pronta.';
+  renderBackgroundPreparation();renderStrips();updateSummary();
+}
+function analysisReady(manifest) {
+  if(!S.song||!manifest)return;
+  S.song.analysis=manifest;
+  if(Net.joined)Net.set({sg:S.song.key});
+  if(!manifest.instruments.includes(S.players[0].instr)) {S.players[0].instr=manifest.instruments[0];if(Net.joined)pushMe();}
+  ensureChartDifficulty();
+  updateAnalysisState({status:'ready',progress:1,instruments:manifest.instruments});
+}
+async function followAnalysis(song) {
+  if(!S.ai||S.song!==song)return;
+  await S.ai.follow(song);
+  S.ai.schedule();
+}
+async function startAnalysis() {
+  if(!S.ai||!S.song||G||S.busy)return;
+  const key=S.song.key;
+  try {await S.ai.prioritize(key);}catch(e){setLibraryStatus(e.message,'err');}
+}
+function updateBackgroundPreparation(state) {
+  S.backgroundPreparation=state;renderBackgroundPreparation();
+}
+function renderBackgroundPreparation() {
+  const state=S.backgroundPreparation,other=state&&state.key!==S.song?.key;
+  const show=!!other&&['running','ready','error'].includes(state.status);
+  $('#backgroundPreparation').hidden=!show;
+  $('#hudBackground').hidden=!show;
+  if(!show)return;
+  const text=state.status==='ready'?state.name+' ficou pronta. Escolha na playlist para a próxima rodada.':state.status==='error'?state.name+': '+state.message:'Preparando '+state.name+' em segundo plano · '+Math.round((state.progress||0)*100)+'%';
+  $('#backgroundStatus').textContent=text;
+  $('#hudBackground').textContent=state.status==='ready'?state.name+' pronta para a próxima rodada':state.status==='running'?'Preparando outra música · '+Math.round((state.progress||0)*100)+'%':'Preparação interrompida';
+  $('#backgroundProgress').hidden=state.status!=='running';$('#backgroundProgress').value=state.progress||0;
+  $('#cancelBackground').hidden=state.status!=='running'||S.ai?.task?.key!==state.key;
+}
+$('#analyzeSong').addEventListener('click',startAnalysis);
+$('#cancelAnalysis').addEventListener('click',()=>S.ai.cancel());
+$('#cancelBackground').addEventListener('click',()=>S.ai.cancel());
+$('#processQueue').addEventListener('click',()=>{S.ai?.processHere();renderPlaylist();});
+$('#randomSong').addEventListener('click', async () => {
+  const b = $('#randomSong');
+  if (b.disabled || !Net.isHost() || !Net.r || G || S.prep || S.busy) return;
+  b.disabled = true;
+  try {
+    // Servidor escolhe uma música pronta, sem repetir a atual quando houver outras.
+    const result = await Net.r.request('/api/playlist/random', { method: 'POST' });
+    setLibraryStatus('Sorteada: ' + songName(result.song) + '. Todos vão receber a mesma música.', 'ok');
+  } catch (e) { setLibraryStatus(e.message, 'err'); }
+  finally { renderPlaylist(); }
+});
+$('#gpuAnalysis').addEventListener('change',()=>{if(S.ai)S.ai.gpu=$('#gpuAnalysis').checked;});
+
+/* ---------- início ---------- */
+function renderDemos() {
+  el.demos.setAttribute('role', 'tabpanel');
+  el.demos.innerHTML = '<div class="demos" role="radiogroup" aria-label="Músicas de exemplo">' + Object.keys(DEMO_SONGS).map(k =>
+    '<button type="button" class="demo" role="radio" aria-checked="' + (S.song?.key === k) + '" data-demo="' + k + '"' + (S.busy ? ' disabled' : '') + '><b>' +
+    DEMO_SONGS[k].name + '</b><span>' + DEMO_SONGS[k].style + (k==='voz'?' · 0:25':' · 1:10') + ' · feita só de código</span></button>').join('') + '</div>';
+}
+function renderStrips() {
+  el.strips.innerHTML = S.players.slice(0, 1).map((p, i) => {
+    const lanes=p.lanes || 4;
+    // Em partituras importadas, mostre apenas as dificuldades que existem.
+    const imported = S.song?.analysis?.charts?.[p.instr] || null;
+    return '<div class="strip' + (p.on ? ' on' : '') + '" style="--acc:' + ACC[p.instr] + '" data-i="' + i + '">' +
+      '<div class="strip-head"><span class="strip-n">J' + (i + 1) + '</span>' +
+      '<button type="button" class="toggle" role="switch" aria-checked="' + p.on + '" data-act="toggle" aria-label="Jogador ' + (i + 1) + ' na banda">' + (p.on ? 'Na banda' : 'Fora') + '</button></div>' +
+      '<div class="instr" role="radiogroup" aria-label="Instrumento do jogador ' + (i + 1) + '">' +
+      availableInstruments().map(k => '<button type="button" role="radio" aria-checked="' + (p.instr === k) + '" data-act="instr" data-v="' + k + '" style="--c:' + ACC[k] + '"><i></i>' + INSTR[k].label + '</button>').join('') + '</div>' +
+      '<div class="seg" role="radiogroup" aria-label="Dificuldade do jogador ' + (i + 1) + '">' +
+      Object.keys(DIFFS).map(k => '<button type="button" role="radio" aria-checked="' + (p.diff === k) + '" data-act="diff" data-v="' + k + '"'+(imported&&!imported[k]?' disabled title="Dificuldade não incluída na partitura"':'')+'>' + DIFFS[k].label + '</button>').join('') + '</div>' +
+      '<div class="keys"><small>Teclas</small>' + KEYSETS[i].labels.slice(0, lanes).map(l => '<kbd>' + esc(l) + '</kbd>').join('') + '</div></div>';
+  }).join('');
+}
+function updateSummary() {
+  const ps = Net.peers(), n = rosterNow().length, host = Net.isHost();
+  const active = ps.filter(p => p.presence.on !== false).length;
+  const songOk = !!S.song?.analysis && n === active && active > 0 && Net.r?.currentSong?.key === S.song.key;
+  const rev = Net.r?.currentSong?.revision;
+  const readyCount = ps.filter(p => p.presence.on !== false && p.presence.ready && p.presence.readyRev === rev).length;
+  const me = ps.find(p => p.isMe), myReady = !!(me?.presence.ready && me.presence.readyRev === rev);
+  const canSetReady = Net.joined && Net.connected && songOk && !S.busy && !G && !S.prep;
+  $('#btnReady').disabled = !canSetReady;
+  $('#btnReady').textContent = myReady ? 'Cancelar pronto' : 'Estou pronto';
+  $('#btnReady').setAttribute('aria-pressed', String(myReady));
+  el.go.disabled = !(canSetReady && host && readyCount === active);
+  el.go.textContent = S.busy ? 'Analisando…' : !host && Net.joined ? 'Só o host inicia' : !songOk ? 'Aguardando a banda' : readyCount < active ? 'Esperando todos prontos' : 'Iniciar partida';
+  el.summary.textContent = (S.song ? S.song.name : 'Nenhuma música') + ' · ' + readyCount + '/' + active + ' jogadores prontos' + (Net.joined && !Net.offline ? ' · sala ' + Net.code : '');
+}
+function setTab(t) {
+  S.tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+  ['demo', 'file', 'youtube','charts'].forEach(key => { $('#pan-' + key).hidden = key !== t; });
+}
+function setProg(p, txt) {
+  el.progBox.hidden = false; el.progFill.style.width = Math.round(p * 100) + '%'; el.progText.textContent = txt || '';
+}
+function setBusy(b) {
+  S.busy = b;
+  
+  if (!b) { el.progBox.hidden = true; }
+  updateSummary();
+  if (b) el.go.disabled = true;
+}
+
+/* ---------- partida ---------- */
+let G = null, W = 0, H = 0, dpr = 1;
+const C_PERS = 3.4, S_MIN = 1 / (1 + C_PERS);
+
+function adaptLanes(chart, wanted) {
+  const from = chart.laneCount;
+  if (from === wanted) return { laneCount: wanted,
+    notes: chart.notes.map(n => ({ ...n, sl: Number.isInteger(n.sl) ? n.sl : n.lane })) };
+  const mapped = chart.notes.map(n => ({ ...n, sl: Number.isInteger(n.sl) ? n.sl : n.lane,
+    lane: Math.min(wanted - 1, Math.floor((n.lane + .5) * wanted / from)) }));
+  // Duas notas simultâneas não podem ocupar a mesma pista: mantém a maior sustentação.
+  mapped.sort((a,b) => a.t-b.t || a.lane-b.lane);
+  const notes = [];
+  for (const n of mapped) {
+    const old = notes.findLast(p => p.lane === n.lane && Math.abs(p.t-n.t)<.025);
+    if (old) { old.dur = Math.max(old.dur || 0,n.dur || 0); continue; }
+    notes.push(n);
+  }
+  // Evita slides sobrepostos na mesma pista após a redistribuição.
+  const next = new Map();
+  for (let i=notes.length-1;i>=0;i--) {
+    const n=notes[i], upcoming=next.get(n.lane);
+    if (upcoming && n.dur) n.dur = Math.max(0, Math.min(n.dur, upcoming.t-n.t-.04));
+    next.set(n.lane,n);
+  }
+  return { laneCount: wanted, notes };
+}
+function makePlayer(cfg, chart) {
+  const D = DIFFS[cfg.diff], L = chart.laneCount;
+  const notes = chart.notes.map(n => ({ t: n.t, lane: n.lane, sl: n.sl ?? n.lane, dur: n.dur || 0, st: 0 }));
+  const lane = Array.from({ length: L }, () => []);
+  notes.forEach((n, i) => lane[n.lane].push(i));
+  return {
+    idx: cfg.i, instr: cfg.instr, diff: cfg.diff, laneCount: L, notes, lane,
+    ptr: new Array(L).fill(0), down: new Array(L).fill(false), hitFx: new Array(L).fill(-9),
+    win: { perfect: 0.05 * D.win, good: 0.095 * D.win, ok: 0.14 * D.win },
+    muted: false, cov: 0, score: 0, combo: 0, maxCombo: 0, miss: 0, stray: 0, cnt: [0, 0, 0], last: null, i0: 0,
+    acc: ACC[cfg.instr], keyset: KEYSETS[cfg.i], cx: 0, hw: 0, laneW: 0, yTop: 0, yHit: 0
+  };
+}
+
+async function prepare(go, revision) {
+  const act = go.roster.map(r => ({ instr: r.i, diff: r.d, lanes: r.l, p: r.p, i: 0 }));
+  const mine = act.find(a => a.p === Net.me());
+  if (!mine || !S.song || S.busy) { S.prep = { r: go.r, players: null, roster: go.roster }; setLobbyNote('Rodada em andamento. Você entra na próxima.'); return; }
+  const song = S.song;
+  setBusy(true);
+  try {
+    const c = getCtx();
+    try { await c.resume(); } catch (e) { /* segue */ }
+    if (!song.analysis) throw Error('Prepare a música com IA antes de começar.');
+    if(!song.analysis.instruments.includes(mine.instr))throw Error('Este instrumento não foi encontrado na música.');
+    const wanted = [...new Set(act.map(p=>p.instr))].filter(i=>song.analysis.instruments.includes(i));
+    if(!song.exact&&song.analysis.source!=='chart') {
+      setProg(.1,'Recebendo as faixas separadas da banda…');
+      song.stems ||= {};
+      for(const instrument of wanted)if(!song.stems[instrument])song.stems[instrument]=await S.ai.stem(instrument);
+      // Residual calculado a partir do original: sem duplicar volume e sem mudar o relógio.
+      const rest=c.createBuffer(song.buffer.numberOfChannels,song.buffer.length,song.sr);
+      for(let ch=0;ch<rest.numberOfChannels;ch++) {
+        const data=Float32Array.from(song.buffer.getChannelData(ch));
+        for(const instrument of wanted){const stem=song.stems[instrument],x=stem.getChannelData(0),ratio=stem.sampleRate/song.sr;for(let j=0;j<data.length;j++){const at=j*ratio,lo=Math.floor(at),frac=at-lo;data[j]-=(x[lo]||0)*(1-frac)+(x[lo+1]||0)*frac;}}
+        rest.copyToChannel(data,ch);
+      }
+      song.rest=rest;song.playStems=wanted;
+    }
+    setProg(.92,'Montando a pista com as notas deste instrumento…');
+    const chart=adaptLanes(JamCharts.fromManifest(song.analysis,mine.instr,mine.diff,song.duration), mine.lanes || 4);
+    const players=[makePlayer(mine,chart)];
+    setProg(1, 'Pronto.');
+    await tick();
+    setBusy(false);
+    if (revision !== roundPrepRevision) return; // host trocou antes do fim do preparo
+    S.prep = { r: go.r, players, roster: go.roster };
+    Net.set({ rd: go.r });
+    Net.syncClock();
+    setLobbyNote('Esperando os outros jogadores ficarem prontos…');
+  } catch (e) {
+    console.error(e);
+    setBusy(false);
+    if (revision !== roundPrepRevision) return;
+    el.progText.textContent = e.message || 'Não consegui preparar esse áudio.'; Net.set({ rd: -1 });
+  }
+}
+
+function enterStage(players, roster, round, at) {
+  el.setup.hidden = true; el.stage.hidden = false;
+  document.documentElement.style.overflow = 'hidden';
+  el.sheetPause.hidden = true; el.sheetEnd.hidden = true;
+  G = { players, state: 'count', tv: -3, paused: false, fx: [], keymap: {}, ptrs: new Map(), dead: false, last: performance.now(), raf: 0, src: null, audioStart: 0, round, roster, mut: {}, muteUntil: {}, rflash: {}, rerr: {}, errT: {}, side: roster.length > 1 && window.innerWidth >= 700 ? 168 : 0 };
+  players.forEach((P, pi) => { for (const ks of activeKeysets()) for (let l = 0; l < P.laneCount; l++) G.keymap[ks.codes[l]] = [pi, l]; });
+  el.hudTitle.textContent = S.song.name;
+  layout();
+  const c = ctx;
+  G.audioStart = c.currentTime + (at - Net.off - Net.now()) / 1000;
+  const playAt=Math.max(c.currentTime+.04,G.audioStart),skip=Math.max(0,playAt-G.audioStart);
+  G.srcs = []; G.gains = {};
+  const play = (buf, node) => { const src = c.createBufferSource(); src.buffer = buf; src.connect(node || musicBus); src.start(playAt,skip); G.srcs.push(src); };
+  const sg = S.song;
+  if (sg.stems) {
+    if (sg.rest) play(sg.rest);
+    for (const k of (sg.playStems || Object.keys(sg.stems))) { const gn = c.createGain(); gn.connect(musicBus); G.gains[k] = gn; play(sg.stems[k], gn); }
+  } else play(sg.buffer);
+  lastCt = -1;
+  G.statT = setInterval(pushStats, 250);
+  G.raf = requestAnimationFrame(loop);
+}
+
+let lastCt = -1;
+function audibleTime(inputTime = performance.now()) {
+  const stamp=ctx.getOutputTimestamp?.();
+  const audible=stamp&&stamp.contextTime>0&&stamp.performanceTime>0
+    ? stamp.contextTime+(inputTime-stamp.performanceTime)/1000
+    : ctx.currentTime-(ctx.outputLatency||ctx.baseLatency||0);
+  return audible;
+}
+function songNow(inputTime = performance.now()) { return audibleTime(inputTime)-G.audioStart-S.latency/1000; }
+
+function loop() {
+  if (!G || G.dead) return;
+  const now = performance.now(), dt = Math.min(0.05, (now - G.last) / 1000); G.last = now;
+  G.tv = songNow();
+  if (!G.paused && G.state !== 'end') update(G.tv);
+  draw(G.tv, G.paused ? 0 : dt);
+  el.hudFill.style.width = Math.max(0, Math.min(100, G.tv / S.song.duration * 100)) + '%';
+  if (G.state !== 'end') G.raf = requestAnimationFrame(loop);
+}
+
+function breakCombo(P) { P.combo = 0; }
+const ERRBUF = {};
+function errBuf(kind) {
+  if (ERRBUF[kind]) return ERRBUF[kind];
+  const sr = ctx.sampleRate, len = Math.floor(sr * 0.35), b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0), r = makeRng(777 + kind.length);
+  let nz = 0;
+  for (let i = 0; i < len; i++) {
+    const t = i / sr, nn = r() * 2 - 1, T = 2 * Math.PI * t;
+    let v = 0;
+    if (kind === 'vocal') {
+      const envelope=Math.exp(-Math.pow((t-.075)/.038,2))+.65*Math.exp(-Math.pow((t-.20)/.045,2));
+      nz+=(nn-nz)*.30; v=(nz*1.4+.23*Math.sin(T*(135+30*Math.sin(T*9))))*envelope*.65;
+    } else if (kind === 'guitarra') v = Math.tanh(3 * (Math.sin(T * 185) + 0.9 * Math.sin(T * 262) + 0.5 * Math.sin(T * 392)) + nn * 1.4) * Math.exp(-t / 0.09) * 0.55;
+    else if (kind === 'baixo') v = Math.tanh(2.5 * (Math.sin(T * 52) + 0.8 * Math.sin(T * 56))) * (0.6 + 0.4 * nn) * Math.exp(-t / 0.12) * 0.75;
+    else if (kind === 'bateria') {
+      nz += (nn - nz) * 0.25;
+      v = (nz * 1.5 * Math.exp(-t / 0.035) + Math.sin(2 * Math.PI * (130 - 250 * t) * t) * Math.exp(-t / 0.05)) * 0.6;
+      if (t > 0.06) { const t2 = t - 0.06; v += nz * 0.9 * Math.exp(-t2 / 0.03) * 0.5; }
+    } else v = (Math.sin(T * 466) + Math.sin(T * 494) + Math.sin(T * 523)) * 0.25 * Math.exp(-t / 0.14) * (1 + 0.3 * Math.sin(T * 30));
+    d[i] = Math.max(-1, Math.min(1, v));
+  }
+  return ERRBUF[kind] = b;
+}
+function playErrI(instr) {
+  if (!ctx || !G) return;
+  const now = ctx.currentTime;
+  if (now - (G.errT[instr] || -9) < 0.3) return;
+  G.errT[instr] = now;
+  const s = ctx.createBufferSource(), gn = ctx.createGain();
+  s.buffer = errBuf(instr); s.playbackRate.value = 0.85 + Math.random() * 0.3; gn.gain.value = 0.75;
+  s.connect(gn); gn.connect(keyBus); s.start();
+}
+function playKeyHit(lane) {
+  if (!ctx || S.keyVolume === 0) return;
+  const osc = ctx.createOscillator(), env = ctx.createGain();
+  const t = ctx.currentTime;
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(540 + lane * 90, t);
+  osc.frequency.exponentialRampToValueAtTime(360 + lane * 55, t + 0.065);
+  env.gain.setValueAtTime(0.065, t);
+  env.gain.exponentialRampToValueAtTime(0.001, t + 0.075);
+  osc.connect(env); env.connect(keyBus);
+  osc.start(t); osc.stop(t + 0.08);
+  osc.onended = () => { osc.disconnect(); env.disconnect(); };
+}
+function failFx(P, tv) { P.flash = tv; if (P.diff !== 'facil') P.score = Math.max(0, P.score - 20); }
+// som do instrumento: errou (ou alguém da banda errou), a faixa some até o próximo acerto
+function setMutedI(i, v) {
+  if (!!G.mut[i] === v) return;
+  G.mut[i] = v;
+  if (G.gains && G.gains[i]) G.gains[i].gain.setTargetAtTime(v ? (S.song.exact ? 0 : 0.03) : 1, ctx.currentTime, 0.008);
+}
+function update(tv) {
+  if (G.state === 'count' && tv >= 0) G.state = 'play';
+  if (G.state !== 'play') return;
+  const P = G.players[0], team = teamSize(P), grace = team ? 0.35 : 0;   // com mais gente no instrumento, espera o aviso de acerto do colega
+  for (let l = 0; l < P.laneCount; l++) {
+    const list = P.lane[l]; let k = P.ptr[l], adv = true;
+    for (let q = k; q < list.length; q++) {
+      const n = P.notes[list[q]];
+      if (n.t > tv) break;
+      if (n.st === 5 && tv >= n.t + n.dur) {
+        n.st = 1;
+        P.score += 50;
+        P.last = { text: 'SLIDE COMPLETO +50', color: '#38e3b0', t0: tv };
+        Net.emit('hold', { r: G.round, i: P.instr, l: n.lane, sl: n.sl, t: +n.t.toFixed(3) });
+      }
+      if (n.st === 3 && (n.dur ? tv >= n.t + n.dur : n.t < tv - P.win.ok)) { n.st = 4; P.cov++; }
+      else if ((n.st === 0 || n.st === 6 || n.st === 7) && n.t + ((n.st === 6 || n.st === 7) ? n.dur : 0) < tv - P.win.ok - grace) {
+        n.st = 2; P.miss++; breakCombo(P); failFx(P, tv);
+        P.last = { text: 'ERROU', color: '#ff5c7a', t0: tv };
+        if (n.t >= tv - 1.0) {                                   // aba em segundo plano: erros muito antigos passam em silêncio
+          const snd = P.instr === 'vocal' || ctx.currentTime - (P.lastPress || -9) < 1.5;
+          setMutedI(P.instr, true); G.muteUntil[P.instr] = tv + 0.45;
+          if (snd) playErrI(P.instr);
+          Net.emit('err', { r: G.round, i: P.instr, m: 1, s: snd ? 1 : 0 });
+        }
+      }
+      if (adv && n.st !== 0 && n.st !== 3 && n.st !== 7) k = q + 1; else adv = false;
+    }
+    P.ptr[l] = k;
+  }
+  if (tv > S.song.duration + 1.0) finish();
+}
+
+function press(pi, l) {
+  const P = G.players[pi];
+  if (!P || l >= P.laneCount || P.down[l]) return;
+  P.down[l] = true; P.lastPress = ctx.currentTime;
+  if (G.state !== 'play' || G.paused) return;
+  const tv = songNow(), list = P.lane[l];
+  let n = null;
+  for (let k = P.ptr[l]; k < list.length; k++) {
+    const c = P.notes[list[k]];
+    if (c.t > tv + P.win.ok) break;
+    if (((c.st === 0 || c.st === 3 || c.st === 6) && Math.abs(tv - c.t) <= P.win.ok) ||
+        (c.st === 7 && tv <= c.t + c.dur + P.win.ok)) { n = c; break; }
+  }
+  if (n) {
+    if (n.st === 7) { n.st = 5; playKeyHit(l); P.last = { text: 'SEGURANDO', color: '#38e3b0', t0: tv }; return; }
+    const ad = Math.abs(tv - n.t);
+    n.st = n.dur ? 5 : 1; if (tv >= (G.muteUntil[P.instr] || 0)) setMutedI(P.instr, false);
+    const j = ad <= P.win.perfect ? 0 : ad <= P.win.good ? 1 : 2;
+    P.combo++; if (P.combo > P.maxCombo) P.maxCombo = P.combo;
+    const mult = Math.min(4, 1 + Math.floor(P.combo / 10));
+    P.score += [100, 70, 40][j] * mult;
+    P.cnt[j]++; P.hitFx[l] = tv;
+    playKeyHit(l);
+    P.last = { text: n.dur ? 'SEGURE ATÉ O FINAL' : ['PERFEITO', 'BOM', 'OK'][j], color: ['#38e3b0', '#ffc933', '#9a9ec7'][j], t0: tv };
+    const x = P.cx + (l + 0.5 - P.laneCount / 2) * P.laneW, col = LANE_COL[P.instr][l];
+    for (let q = 0; q < 9; q++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = 90 + Math.random() * 170;
+      G.fx.push({ x, y: P.yHit, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45, c: col });
+    }
+    Net.emit('hit', { r: G.round, i: P.instr, l, sl: n.sl, t: +n.t.toFixed(3) });
+    return;
+  }
+  // Pressionar fora do tempo não é erro: somente uma nota que passa sem acerto conta.
+  P.stray++;
+  playKeyHit(l);
+}
+function release(pi, l) {
+  const P = G && G.players[pi];
+  if (!P || l >= P.laneCount || !P.down[l]) return;
+  P.down[l] = false;
+  if (!G || G.dead || G.state !== 'play') return;
+  for (const idx of P.lane[l]) {
+    const n = P.notes[idx];
+    if (n.st !== 5) continue;
+    if (G.tv >= n.t + n.dur - 0.07) return; // pequena tolerância na ponta da nota
+    n.st = 7; // pendente de recuperar: só erra se o fim passar sem segurar
+    P.last = { text: 'SEGURE ATÉ O FIM', color: '#ffc933', t0: G.tv };
+    break;
+  }
+}
+
+function togglePause() {   // online não pausa: o menu só abre por cima enquanto a música segue
+  if (!G || G.state === 'end') return;
+  el.sheetPause.hidden = !el.sheetPause.hidden;
+}
+function stopAudio() { (G.srcs || []).forEach(s => { try { s.stop(); } catch (e) { /* já parou */ } }); }
+function quit() {
+  if (!G) return;
+  G.dead = true; cancelAnimationFrame(G.raf); stopAudio(); clearInterval(G.statT); clearInterval(G.endT); S.prep = null; Net.set({ st: null, rd: null });
+  try { ctx.resume(); } catch (e) { /* segue */ }
+  G = null;
+  if (Net.r && Net.r.currentSong && S.song?.key !== Net.r.currentSong.key) applyRoomSong(Net.r.currentSong);
+  el.stage.hidden = true; el.setup.hidden = false;
+  el.sheetPause.hidden = true; el.sheetEnd.hidden = true;
+  document.documentElement.style.overflow = '';
+  window.scrollTo(0, 0);
+}
+function finish() {
+  G.state = 'end'; stopAudio(); clearInterval(G.statT);
+  Net.set({ st: myStats(true) });
+  $('#endTitle').textContent = 'Fim da música';
+  $('#btnAgain').hidden = !Net.isHost();
+  el.sheetPause.hidden = true; el.sheetEnd.hidden = false;
+  G.endT = setInterval(renderEnd, 700);
+  renderEnd();
+}
+function renderEnd() {
+  if (!G || G.state !== 'end') return;
+  const ps = Net.peers(), me = Net.me();
+  const rows = G.roster.map(r => {
+    const p = ps.find(q => q.peer === r.p);
+    let st = r.p === me ? myStats(true) : (p && p.presence.st);
+    if (st && st.r !== G.round) st = null;
+    return { r, st, here: !!p };
+  }).sort((a, b) => num(b.st && b.st.sc) - num(a.st && a.st.sc));
+  const top = num(rows[0].st && rows[0].st.sc), w = rows.filter(x => num(x.st && x.st.sc) === top);
+  $('#endSub').textContent = rows.length > 1
+    ? (w.length > 1 ? 'Empate no topo com ' + top + ' pontos.' : w[0].r.n + ' (' + INSTR[w[0].r.i].label.toLowerCase() + ') fez a maior pontuação: ' + top + ' pontos.')
+    : S.song.name;
+  $('#endTable').innerHTML = '<thead><tr><th>Jogador</th><th>Instrumento</th><th>Pontos</th><th>Acertos</th><th>Sequência</th><th>Perfeitos</th><th>Bons</th><th>Ok</th><th>Cobertos</th><th>Erros</th></tr></thead><tbody>' +
+    rows.map(x => {
+      const s = x.st || {}, c = s.c || [0, 0, 0], tot = num(s.tot), hits = num(c[0]) + num(c[1]) + num(c[2]);
+      return '<tr><td>' + esc(x.r.n) + (x.st && x.st.fin ? '' : x.here ? ' …' : ' (saiu)') + '</td><td><i style="--c:' + ACC[x.r.i] + '"></i>' + INSTR[x.r.i].label + ' · ' + DIFFS[x.r.d].label + '</td><td>' + num(s.sc) + '</td><td>' +
+        (tot ? Math.round((hits + num(s.cv)) / tot * 100) : 0) + '%</td><td>' + num(s.mx) + '</td><td>' + num(c[0]) + '</td><td>' + num(c[1]) + '</td><td>' + num(c[2]) + '</td><td>' + num(s.cv) + '</td><td>' + num(s.ms) + '</td></tr>';
+    }).join('') + '</tbody>';
+}
+
+/* ---------- desenho ---------- */
+function layout() {
+  if (!G) return;
+  const r = el.stage.getBoundingClientRect();
+  W = r.width; H = r.height; dpr = Math.min(2, window.devicePixelRatio || 1);
+  el.cv.width = Math.round(W * dpr); el.cv.height = Math.round(H * dpr);
+  g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const P = G.players[0], compact = H < 560;
+  G.side = G.roster.length > 1 && W >= 700 ? 168 : 0;
+  P.cx = G.side + (W - G.side) / 2;
+  P.hw = Math.max(120, Math.min(W - G.side - 14, 460));
+  P.laneW = P.hw / P.laneCount;
+  P.yTop = compact ? 120 : 152;
+  P.yHit = H - (compact ? 74 : 106);
+}
+function clip(g, t, w) { if (g.measureText(t).width <= w) return t; while (t.length > 1 && g.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; }
+// os outros jogadores da sala: nome, instrumento, pontos e um clarão vermelho quando erram
+function drawRemote(g, tv) {
+  const me = Net.me(), others = G.roster.filter(r => r.p !== me);
+  if (!others.length) return;
+  const ps = Net.peers();
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  if (G.side) {
+    const ch = Math.max(30, Math.min(54, (H - 150) / others.length)), w = 156;
+    others.forEach((r, k) => {
+      const p = ps.find(q => q.peer === r.p), st = (p && p.presence.st) || {}, y = 70 + k * (ch + 4), f = G.rflash[r.p];
+      const fl = f !== undefined && tv >= f && tv - f < 0.4;
+      rr(g, 12, y, w, ch, 6, fl ? 'rgba(255,60,80,.5)' : 'rgba(34,37,73,.85)');
+      rr(g, 12, y, 4, ch, 2, ACC[r.i]);
+      g.fillStyle = p ? '#eeecf8' : '#6f73a3'; g.font = '600 12px ' + FM; g.fillText(clip(g, r.n + (p ? '' : ' (saiu)'), w - 20), 24, y + 15);
+      g.fillStyle = '#9a9ec7'; g.font = '500 11px ' + FM;
+      g.fillText(clip(g, INSTR[r.i].label + ' · ' + num(st.sc) + (num(st.cb) > 1 ? ' ×' + num(st.cb) : '') + (G.mut[r.i] ? ' · mudo' : ''), w - 20), 24, y + 30);
+    });
+  } else {
+    g.font = '500 11px ' + FM; g.fillStyle = '#9a9ec7';
+    g.fillText(clip(g, others.map(r => { const p = ps.find(q => q.peer === r.p); return r.n + ' ' + num(p && p.presence.st && p.presence.st.sc); }).join('  ·  '), W - 16), 8, 64);
+  }
+}
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+function rr(g, x, y, w, h, r, fill) {
+  g.beginPath();
+  if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h);
+  g.fillStyle = fill; g.fill();
+}
+function proj(P, u) {
+  const s = 1 / (1 + C_PERS * u);
+  const y = P.yHit - (P.yHit - P.yTop) * ((s - 1) / (S_MIN - 1));
+  return { s, y };
+}
+function drawNote(g, P, lane, x, y, s, color, a) {
+  g.globalAlpha = a;
+  if (P.instr === 'bateria' && lane === 0) {            // pedal do bumbo: barra larga
+    const w = P.hw * s * 0.96, h = Math.max(4, P.laneW * s * 0.2);
+    rr(g, P.cx - w / 2 - 1.5, y - h / 2 - 1.5, w + 3, h + 3, h * 0.5, '#07070d');
+    rr(g, P.cx - w / 2, y - h / 2, w, h, h * 0.45, color);
+    rr(g, P.cx - w / 2 + h * 0.5, y - h * 0.32, w - h, h * 0.2, h * 0.1, 'rgba(255,255,255,.55)');
+  } else {                                              // gema: aro preto, cor, anel branco, miolo colorido
+    const r = P.laneW * s * 0.41, ry = r * 0.78;
+    const ov = (rx, rY, c, oy) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y + (oy || 0), rx, rY, 0, 0, 6.2832); g.fill(); };
+    ov(r * 1.14, ry * 1.18, '#07070d');
+    ov(r, ry, color);
+    ov(r * 0.62, ry * 0.62, '#ffffff');
+    ov(r * 0.38, ry * 0.38, color);
+    ov(r * 0.6, ry * 0.17, 'rgba(255,255,255,.4)', -ry * 0.62);
+  }
+  g.globalAlpha = 1;
+}
+
+function trap(g, cx, hw, yT, yH, a, b) {   // faixa do braço entre as posições a e b (em unidades de pista)
+  g.beginPath();
+  g.moveTo(cx + a * S_MIN, yT); g.lineTo(cx + b * S_MIN, yT); g.lineTo(cx + b, yH); g.lineTo(cx + a, yH); g.closePath();
+}
+
+function drawPlayer(g, P, tv) {
+  const L = P.laneCount, cx = P.cx, hw = P.hw, laneW = P.laneW, yT = P.yTop, yH = P.yHit;
+  const col = LANE_COL[P.instr], x0 = -hw / 2;
+  // braço
+  g.beginPath();
+  g.moveTo(cx - hw / 2 * S_MIN, yT); g.lineTo(cx + hw / 2 * S_MIN, yT); g.lineTo(cx + hw / 2, yH); g.lineTo(cx - hw / 2, yH); g.closePath();
+  const gr = g.createLinearGradient(0, yT, 0, yH);
+  gr.addColorStop(0, 'rgba(10,10,20,0)'); gr.addColorStop(0.35, 'rgba(14,14,26,.8)'); gr.addColorStop(1, 'rgba(20,20,36,.97)');
+  g.fillStyle = gr; g.fill();
+  if (P.flash !== undefined && tv - P.flash < 0.3 && tv >= P.flash) { trap(g, cx, hw, yT, yH, x0, -x0); g.fillStyle = 'rgba(255,40,60,' + (0.28 * (1 - (tv - P.flash) / 0.3)) + ')'; g.fill(); }
+  for (let l = 0; l < L; l += 2) { trap(g, cx, hw, yT, yH, x0 + l * laneW, x0 + (l + 1) * laneW * 1); g.fillStyle = 'rgba(255,255,255,.035)'; g.fill(); }
+  for (let l = 0; l < L; l++) {                         // brilho da pista apertada
+    if (!P.down[l]) continue;
+    const gl = g.createLinearGradient(0, yH, 0, yT);
+    gl.addColorStop(0, rgba(col[l], 0.4)); gl.addColorStop(1, rgba(col[l], 0));
+    trap(g, cx, hw, yT, yH, x0 + l * laneW, x0 + (l + 1) * laneW); g.fillStyle = gl; g.fill();
+  }
+  g.lineWidth = 1; g.strokeStyle = 'rgba(235,238,255,.3)';
+  for (let k = 1; k < L; k++) { g.beginPath(); g.moveTo(cx + (k - L / 2) * laneW * S_MIN, yT); g.lineTo(cx + (k - L / 2) * laneW, yH); g.stroke(); }
+  const look = S.look, N = P.notes;
+  // linhas de compasso (se o tempo foi detectado)
+  const bt = S.song?.F?.beat || null;
+  if (bt) {
+    for (let k = Math.ceil((tv - bt.ph) / bt.per); ; k++) {
+      const t = bt.ph + k * bt.per; if (t > tv + look) break;
+      const u = (t - tv) / look; if (u < 0) continue;
+      const pj = proj(P, u), bar = ((k % 4) + 4) % 4 === 0;
+      g.lineWidth = bar ? 3 : 1.5; g.strokeStyle = bar ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.22)';
+      g.beginPath(); g.moveTo(cx - hw / 2 * pj.s, pj.y); g.lineTo(cx + hw / 2 * pj.s, pj.y); g.stroke();
+    }
+  }
+  // trilhos laterais
+  g.lineWidth = 3; g.strokeStyle = 'rgba(225,230,255,.85)';
+  g.beginPath(); g.moveTo(cx - hw / 2 * S_MIN, yT); g.lineTo(cx - hw / 2, yH); g.moveTo(cx + hw / 2 * S_MIN, yT); g.lineTo(cx + hw / 2, yH); g.stroke();
+  // notas (de longe para perto)
+  while (P.i0 < N.length && N[P.i0].t + (N[P.i0].dur || 0) < tv - 0.3) P.i0++;
+  let j = P.i0;
+  while (j < N.length && N[j].t <= tv + look) j++;
+  // Rastros das notas longas: o jogador precisa segurar até a cauda chegar à linha.
+  if (P.instr !== 'bateria') {
+    for (let q = j - 1; q >= P.i0; q--) {
+      const n = N[q]; if (!n.dur || n.st === 1 || n.st === 4 || n.st === 2) continue;
+      const startU = Math.max(0, (n.t - tv) / look);
+      const endU = Math.min(1, (n.t + n.dur - tv) / look);
+      if (endU <= 0 || startU > 1 || endU <= startU) continue;
+      const p1 = proj(P, startU), p2 = proj(P, endU);
+      const xl = (n.lane + .5 - L / 2) * laneW;
+      const x1 = cx + xl * p1.s, x2 = cx + xl * p2.s;
+      const w1 = laneW * p1.s * .15, w2 = laneW * p2.s * .15;
+      g.save(); g.globalAlpha = n.st === 3 || n.st === 6 ? 0.5 : 0.92;
+      g.fillStyle = col[n.lane];
+      g.beginPath(); g.moveTo(x1-w1,p1.y); g.lineTo(x1+w1,p1.y);
+      g.lineTo(x2+w2,p2.y); g.lineTo(x2-w2,p2.y); g.closePath(); g.fill();
+      g.fillStyle = '#fff';
+      g.beginPath(); g.arc(x2,p2.y,Math.max(3,w2*.8),0,Math.PI*2); g.fill();
+      g.restore();
+    }
+  }
+  for (let q = j - 1; q >= P.i0; q--) {
+    const n = N[q];
+    if (n.st === 1 || n.st === 4) continue;
+    let u = (n.t - tv) / look;
+    if (u > 1) continue;
+    if (u < -0.1) continue;
+    const pj = proj(P, u);
+    const x = cx + (n.lane + 0.5 - L / 2) * laneW * pj.s;
+    let a = n.st === 2 ? 0.3 : n.st === 3 ? 0.55 : 1;
+    if (u > 0.9) a *= Math.max(0, (1 - u) / 0.1);
+    if (u < 0) a *= Math.max(0, 1 + u / 0.1);
+    drawNote(g, P, n.lane, x, pj.y, pj.s, n.st === 2 ? '#6f73a3' : col[n.lane], a);
+  }
+  // linha de acerto
+  g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.4)';
+  g.beginPath(); g.moveTo(cx - hw / 2 - 6, yH); g.lineTo(cx + hw / 2 + 6, yH); g.stroke();
+  // botões (estilo "traste")
+  const R = Math.min(laneW * 0.42, 31);
+  for (let l = 0; l < L; l++) {
+    const x = cx + (l + 0.5 - L / 2) * laneW, dn = P.down[l], c = col[l];
+    const age = tv - P.hitFx[l];
+    if (age >= 0 && age < 0.2) {                        // clarão do acerto
+      const k = age / 0.2, fr = R * (1.6 + k * 1.6), fl = g.createRadialGradient(x, yH, 0, x, yH, fr);
+      fl.addColorStop(0, 'rgba(255,255,255,' + (0.95 * (1 - k)) + ')'); fl.addColorStop(0.4, rgba(c, 0.7 * (1 - k))); fl.addColorStop(1, rgba(c, 0));
+      g.fillStyle = fl; g.beginPath(); g.arc(x, yH, fr, 0, 6.2832); g.fill();
+    }
+    g.save(); g.translate(x, yH); g.scale(1, 0.7);
+    g.fillStyle = '#07070d'; g.beginPath(); g.arc(0, 0, R * 1.14, 0, 6.2832); g.fill();
+    g.lineWidth = R * 0.26; g.strokeStyle = dn ? '#ffffff' : c;
+    g.beginPath(); g.arc(0, 0, R * 0.86, 0, 6.2832); g.stroke();
+    g.fillStyle = dn ? c : '#1b1b2a'; g.beginPath(); g.arc(0, 0, R * 0.64, 0, 6.2832); g.fill();
+    if (dn) { g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(0, 0, R * 0.36, 0, 6.2832); g.fill(); }
+    g.restore();
+    g.fillStyle = dn ? '#07070d' : '#eeecf8';
+    g.font = '500 ' + Math.round(R * 0.62) + 'px ' + FM; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(P.keyset.labels[l], x, yH + 1);
+    if (P.instr === 'bateria') { g.fillStyle = '#9a9ec7'; g.font = '500 10px ' + FM; g.fillText(PAD_NAMES[l], x, yH + R + 16); }
+  }
+  if (G.mut[P.instr] && G.gains && G.gains[P.instr]) { g.fillStyle = '#ff5c7a'; g.font = '500 11px ' + FM; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SOM CORTADO', cx, yH - 118); }
+  // julgamento
+  if (P.last) {
+    const age = tv - P.last.t0;
+    if (age >= 0 && age < 0.6) {
+      g.globalAlpha = 1 - age / 0.6; g.fillStyle = P.last.color;
+      g.font = '800 ' + Math.round(22 + (1 - age / 0.6) * 5) + 'px ' + FD; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(P.last.text, cx, yH - 86); g.globalAlpha = 1;
+    }
+  }
+  // placar e multiplicador
+  const mult = Math.min(4, 1 + Math.floor(P.combo / 10));
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillStyle = P.acc; g.font = '500 12px ' + FM;
+  g.fillText((Net.name + ' · ' + INSTR[P.instr].label + ' · ' + DIFFS[P.diff].label).toUpperCase(), cx, 78);
+  g.fillStyle = '#eeecf8'; g.font = '900 36px ' + FD;
+  g.fillText(String(P.score), cx, 112);
+  const sw = g.measureText(String(P.score)).width, bx = cx + sw / 2 + 26, by = 100, br = 17;
+  g.lineWidth = 4; g.strokeStyle = 'rgba(154,158,199,.3)'; g.beginPath(); g.arc(bx, by, br, 0, 6.2832); g.stroke();
+  const frac = mult >= 4 ? 1 : (P.combo % 10) / 10;
+  if (frac > 0) { g.strokeStyle = '#ffe033'; g.beginPath(); g.arc(bx, by, br, -Math.PI / 2, -Math.PI / 2 + 6.2832 * frac); g.stroke(); }
+  g.fillStyle = '#eeecf8'; g.font = '800 15px ' + FD; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('×' + mult, bx, by + 1);
+  g.textBaseline = 'alphabetic'; g.fillStyle = '#9a9ec7'; g.font = '500 12px ' + FM;
+  g.fillText('SEQUÊNCIA ' + P.combo, cx, 134);
+}
+
+function drawFx(g, dt) {
+  const fx = G.fx;
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i]; f.t += dt;
+    if (f.t >= f.life) { fx.splice(i, 1); continue; }
+    f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 420 * dt;
+    g.globalAlpha = 1 - f.t / f.life; g.fillStyle = f.c;
+    g.beginPath(); g.arc(f.x, f.y, 3, 0, 6.2832); g.fill();
+  }
+  g.globalAlpha = 1;
+}
+function draw(tv, dt) {
+  const g = g2;
+  g.clearRect(0, 0, W, H);
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0b0c1d'); bg.addColorStop(1, '#15173a');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  drawRemote(g, tv);
+  G.players.forEach(P => drawPlayer(g, P, tv));
+  drawFx(g, dt);
+  if (tv < 0 && G.state === 'count') {
+    const k = Math.ceil(-tv), frac = (-tv) % 1;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(238,236,248,' + (0.35 + 0.65 * frac) + ')';
+    g.font = '900 ' + Math.round(Math.min(W, H) * 0.22) + 'px ' + FD;
+    g.fillText(String(k), W / 2, H * 0.46);
+    g.fillStyle = '#9a9ec7'; g.font = '500 14px ' + FM;
+    g.fillText('PREPARE-SE', W / 2, H * 0.46 + Math.min(W, H) * 0.17);
+  }
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('keydown', e => {
+  if (!G || G.dead) return;
+  if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (er) { /* segue */ } }
+  if (e.code === 'Escape') { e.preventDefault(); if (!e.repeat) togglePause(); return; }
+  const m = G.keymap[e.code];
+  if (!m) return;
+  e.preventDefault();
+  if (e.repeat || G.paused) return;
+  press(m[0], m[1]);
+});
+document.addEventListener('keyup', e => {
+  if (!G) return;
+  const m = G.keymap[e.code];
+  if (m) release(m[0], m[1]);
+});
+
+window.addEventListener('resize', layout);
+window.addEventListener('blur', () => { if (G) G.players.forEach((P, pi) => P.down.forEach((down, lane) => { if (down) release(pi, lane); })); });
+el.cv.addEventListener('pointerdown', e => {
+  if (!G || G.paused || G.state === 'end') return;
+  const r = el.cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  for (let pi = 0; pi < G.players.length; pi++) {
+    const P = G.players[pi];
+    if (y >= P.yHit - P.laneW * 0.9 && Math.abs(x - P.cx) <= P.hw / 2) {
+      const l = Math.min(P.laneCount - 1, Math.max(0, Math.floor((x - (P.cx - P.hw / 2)) / P.laneW)));
+      G.ptrs.set(e.pointerId, [pi, l]); press(pi, l);
+      try { el.cv.setPointerCapture(e.pointerId); } catch (err) { /* segue */ }
+      e.preventDefault(); return;
+    }
+  }
+});
+const ptrUp = e => { if (!G) return; const m = G.ptrs.get(e.pointerId); if (m) { G.ptrs.delete(e.pointerId); release(m[0], m[1]); } };
+el.cv.addEventListener('pointerup', ptrUp);
+el.cv.addEventListener('pointercancel', ptrUp);
+
+$('#btnPause').addEventListener('click', togglePause);
+$('#btnResume').addEventListener('click', togglePause);
+$('#btnQuit').addEventListener('click', quit);
+$('#btnBack').addEventListener('click', quit);
+
+$('#btnAgain').addEventListener('click', () => { if (Net.isHost()) { quit(); setLobbyNote('Para outra rodada, todos devem clicar em Estou pronto novamente.'); } });
+$('#btnFull').addEventListener('click', () => {
+  try {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else el.stage.requestFullscreen().catch(() => {});
+  } catch (e) { /* sem tela cheia */ }
+});
+
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { if (S.busy || G) return; setTab(b.dataset.tab); }));
+el.demos.addEventListener('click', e => {
+  const b = e.target.closest('[data-demo]');
+  if (b && !S.busy && !G) { if (Net.r) Net.emit('demo', { id: b.dataset.demo }); else pickDemo(b.dataset.demo); }
+});
+el.strips.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'), s = e.target.closest('.strip');
+  if (!b || !s || S.busy || G || S.prep || b.disabled) return;
+  const p = S.players[+s.dataset.i];
+  if (b.dataset.act === 'toggle') p.on = !p.on;
+  else if (b.dataset.act === 'instr') p.instr = b.dataset.v;
+  else if (b.dataset.act === 'diff') p.diff = b.dataset.v;
+  ensureChartDifficulty();renderStrips(); updateSummary(); savePrefs(); pushMe();
+});
+$('#calibrate').addEventListener('click',async()=>{
+  const c=getCtx();await c.resume();const button=$('#calibrate'),status=$('#calibrationStatus');button.disabled=true;
+  const start=c.currentTime+.9,taps=[],pulses=[];let done=false;
+  status.textContent='Toque Espaço junto com cada batida. Serão 12 batidas.';
+  for(let i=0;i<12;i++){const at=start+i*.6;pulses.push(at);const osc=c.createOscillator(),gain=c.createGain();osc.frequency.value=i%4===0?1100:800;gain.gain.setValueAtTime(.18,at);gain.gain.exponentialRampToValueAtTime(.001,at+.06);osc.connect(gain);gain.connect(keyBus);osc.start(at);osc.stop(at+.07);}
+  const tapped=new Set();
+  const tap=e=>{if(e.code!=='Space')return;e.preventDefault();e.stopImmediatePropagation();const at=audibleTime(e.timeStamp);let i=0;for(let j=1;j<pulses.length;j++)if(Math.abs(at-pulses[j])<Math.abs(at-pulses[i]))i=j;const delta=(at-pulses[i])*1000;if(Math.abs(delta)<290&&!tapped.has(i)){tapped.add(i);if(i>=2)taps.push(delta);status.textContent=taps.length+' batidas registradas. Continue acompanhando o som…';}};
+  document.addEventListener('keydown',tap,true);
+  setTimeout(()=>{document.removeEventListener('keydown',tap,true);button.disabled=false;if(taps.length<4){status.textContent='Poucas batidas registradas. Tente novamente acompanhando o som com Espaço.';return;}taps.sort((a,b)=>a-b);S.latency=Math.max(-200,Math.min(300,Math.round(taps[Math.floor(taps.length/2)]/10)*10));el.lat.value=S.latency;el.latOut.textContent=S.latency+' ms';savePrefs();status.textContent='Ajuste salvo: '+S.latency+' ms. Você pode refazer a calibração ou ajustar o controle.';},9000);
+});
+el.look.addEventListener('change', () => { S.look = parseFloat(el.look.value); savePrefs(); });
+el.lat.addEventListener('input', () => { S.latency = parseInt(el.lat.value, 10) || 0; el.latOut.textContent = S.latency + ' ms'; savePrefs(); });
+for (const [which, ids] of [['music', ['musicVolume', 'stageMusicVolume']], ['key', ['keyVolume', 'stageKeyVolume']]]) {
+  for (const id of ids) $('#' + id).addEventListener('input', event => updateVolume(which, event.target.value));
+}
+$('#btnReady').addEventListener('click', () => {
+  const rev = Net.r?.currentSong?.revision;
+  const me = Net.peers().find(p => p.isMe);
+  const nowReady = !!(me?.presence.ready && me.presence.readyRev === rev);
+  if ($('#btnReady').disabled) return;
+  Net.set({ ready: !nowReady });
+  $('#btnReady').disabled = true; // a próxima presença confirma o novo estado
+});
+$('#laneCount').addEventListener('change', () => {
+  const count = Number($('#laneCount').value);
+  if (![3,4,5].includes(count) || G || S.prep) return;
+  S.players[0].lanes = count;
+  savePrefs(); renderStrips(); pushMe(); updateSummary();
+});
+el.go.addEventListener('click', hostGo);
+const drop = $('#drop'), fileIn = $('#fileIn');
+fileIn.addEventListener('change', () => loadFiles([...fileIn.files]));
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => loadFiles([...(e.dataTransfer?.files || [])]));
+$('#youtubeForm').addEventListener('submit', searchYoutube);
+$('#chartSearchForm').addEventListener('submit',searchChartLibrary);
+$('#brArtistSearch').addEventListener('click',()=>{const artist=$('#brArtist').value.trim();if(artist)searchChartLibrary(null,artist);});
+$('#chartFiles').addEventListener('change',()=>importChartFiles([...$('#chartFiles').files]));
+$('#chartFolder').addEventListener('change',()=>importChartFiles([...$('#chartFolder').files]));
+$('#chartResults').addEventListener('click',e=>{const b=e.target.closest('[data-download-chart]');if(b&&!b.disabled)importCatalogPackage(b.dataset.downloadChart);});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-library]');if(b&&!S.busy&&!G){setTab('charts');searchChartLibrary(null,b.dataset.library);}});
+$('#youtubeResults').addEventListener('click', e => { const b = e.target.closest('[data-import]'); if (b) importYoutube(b.dataset.import); });
+for(const id of ['#playlist','#pendingPlaylist'])$(id).addEventListener('click', async e => {
+  const b = e.target.closest('[data-select], [data-remove], [data-prioritize], [data-copy-error]');
+  if (!b || !Net.r || S.busy || G) return;
+  const removing = b.hasAttribute('data-remove');
+  b.disabled = true;
+  try {
+    if(b.hasAttribute('data-copy-error')){
+      const job=S.analysisQueue?.jobs.find(j=>j.key===b.dataset.copyError);
+      await navigator.clipboard.writeText(JSON.stringify({message:job?.message,...job?.error},null,2));
+      setLibraryStatus('Erro copiado. Cole na conversa para investigar.','ok');return;
+    }
+    if(b.hasAttribute('data-prioritize')){await S.ai.prioritize(b.dataset.prioritize);setLibraryStatus('Prioridade atualizada. A preparação continuará pela fila.','ok');return;}
+    await Net.r.request('/api/playlist', { method: removing ? 'DELETE' : 'POST', key: removing ? b.dataset.remove : b.dataset.select });
+    setLibraryStatus(removing ? 'Música removida. As demais continuam na playlist.' : 'Música escolhida. Sincronizando a banda…', 'ok');
+  } catch (error) { setLibraryStatus(error.message, 'err'); }
+  finally { renderPlaylist(); }
+});
+
+function renderKeyBindings(){
+  const box=$('#keyBindings');box.replaceChildren();
+  KEYSETS[0].labels.forEach((label,index)=>{
+    const button=document.createElement('button');button.type='button';button.className='btn';
+    button.textContent=(index+1)+': '+(pendingKey===index?'Pressione…':label);
+    button.setAttribute('aria-label','Trocar tecla da pista '+(index+1)+', atual '+label);
+    button.addEventListener('click',()=>{pendingKey=index;renderKeyBindings();$('#keyBindingStatus').textContent='Pressione a nova tecla da pista '+(index+1)+'. Esc cancela.';});
+    box.append(button);
+  });
+}
+document.addEventListener('keydown',event=>{
+  if(pendingKey<0)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  if(event.repeat)return;
+  if(event.code==='Escape'){pendingKey=-1;renderKeyBindings();$('#keyBindingStatus').textContent='Troca cancelada.';return;}
+  if(event.metaKey||(event.ctrlKey&&!event.code.startsWith('Control'))||(event.altKey&&!event.code.startsWith('Alt')))return;
+  const label=event.code==='Space'?'Espaço':event.key==='Dead'?event.code:event.key.length===1?event.key.toUpperCase():event.key;
+  if(!bindKey(pendingKey,event.code,label)){$('#keyBindingStatus').textContent='Essa tecla é reservada pelo navegador. Escolha outra.';return;}
+  pendingKey=-1;
+  try{localStorage.setItem(KEY_STORE,JSON.stringify(KEYSETS[0]));}catch(error){/* preferência continua nesta aba */}
+  renderKeyBindings();renderStrips();$('#keyBindingStatus').textContent='Teclas atualizadas. Se a tecla já estava em outra pista, as duas foram trocadas.';
+},true);
+window.addEventListener('blur',()=>{pendingKey=-1;renderKeyBindings();});
+$('#resetKeys').addEventListener('click',()=>{applyKeys(DEFAULT_KEYS);pendingKey=-1;try{localStorage.removeItem(KEY_STORE);}catch(error){}renderKeyBindings();renderStrips();$('#keyBindingStatus').textContent='Padrão restaurado: A S D F G; alternativa H J K L Ç.';});
+try{applyKeys(JSON.parse(localStorage.getItem(KEY_STORE)||'null'));}catch(error){/* padrão se armazenamento inválido */}
+renderKeyBindings();
+loadPrefs();
+$('#laneCount').value = String(S.players[0].lanes || 4);
+el.look.value = String(S.look);
+el.lat.value = String(S.latency); el.latOut.textContent = S.latency + ' ms';
+updateVolume('music', S.musicVolume);
+updateVolume('key', S.keyVolume);
+renderDemos(); renderStrips(); updateSummary();
+try { document.fonts.load('900 36px "Big Shoulders Display"'); document.fonts.load('500 12px "DM Mono"'); } catch (e) { /* fontes opcionais */ }
+pickDemo('rock');
+$('#btnJoin').addEventListener('click', () => joinRoom(false));
+$('#btnNew').addEventListener('click', () => { $('#code').value = ''; joinRoom(false, true); });
+$('#btnSolo').addEventListener('click', () => joinRoom(true));
+$('#btnLeaveRoom').addEventListener('click', () => { location.assign(location.pathname); });
+$('#btnCopyInvite').addEventListener('click', async () => {
+  if (!Net.connected || Net.offline) return;
+  const invite = location.origin + location.pathname + '#' + Net.code;
+  try {
+    await navigator.clipboard.writeText(invite);
+    $('#netStatus').textContent = 'Convite copiado! Envie aos seus amigos: ' + invite;
+    $('#netStatus').className = 'status ok';
+  } catch (e) {
+    $('#netStatus').textContent = 'Copie e envie este link: ' + invite;
+    $('#netStatus').className = 'status';
+  }
+});
+try { const h = cleanCode(location.hash.slice(1)); if (h) $('#code').value = h; } catch (e) { /* segue */ }
+
+})();
