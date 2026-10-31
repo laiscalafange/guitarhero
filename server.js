@@ -23,13 +23,46 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
   if (await analysis.handle(req, res, url)) return;
   if (await music.handle(req, res, url)) return;
-  if (['/chart-engine.js', '/chart-import.js','/ai-client.js', '/ai-worker.js','/ai-worker-gpu.js'].includes(pathname) || pathname.startsWith('/vendor/') || pathname.startsWith('/models/')) {
-    const target = path.resolve(__dirname, 'public', '.' + pathname);
-    if (!target.startsWith(path.resolve(__dirname, 'public') + path.sep) || !/\.(m?js|wasm|json|bin)$/.test(target) || !fs.existsSync(target)) { res.writeHead(404); res.end(); return; }
-    const mime = { '.js':'text/javascript', '.mjs':'text/javascript', '.wasm':'application/wasm', '.json':'application/json', '.bin':'application/octet-stream' }[path.extname(target)];
-    res.writeHead(200, {'Content-Type':mime,'Cache-Control':/\.m?js$/.test(target)?'no-store':'public, max-age=3600','Cross-Origin-Resource-Policy':'same-origin','Cross-Origin-Embedder-Policy':'credentialless'});
-    fs.createReadStream(target).pipe(res); return;
+  // Arquivos estaticos do jogo. Depois da modularizacao, CSS e JS ficam
+  // em public/css/ e public/js/, mas os scripts antigos continuam na raiz.
+  const legacyScripts = new Set([
+    '/chart-engine.js', '/chart-import.js', '/ai-client.js',
+    '/ai-worker.js', '/ai-worker-gpu.js'
+  ]);
+  const isStatic = legacyScripts.has(pathname) ||
+    ['/css/', '/js/', '/vendor/', '/models/'].some(prefix => pathname.startsWith(prefix));
+
+  if (isStatic) {
+    let decoded;
+    try { decoded = decodeURIComponent(pathname); }
+    catch { res.writeHead(400); res.end('Caminho inválido'); return; }
+
+    const publicRoot = path.resolve(__dirname, 'public');
+    const target = path.resolve(publicRoot, '.' + decoded);
+    const ext = path.extname(target).toLowerCase();
+    const mime = {
+      '.css': 'text/css; charset=utf-8',
+      '.js': 'text/javascript; charset=utf-8',
+      '.mjs': 'text/javascript; charset=utf-8',
+      '.wasm': 'application/wasm',
+      '.json': 'application/json; charset=utf-8',
+      '.bin': 'application/octet-stream'
+    }[ext];
+    if (!target.startsWith(publicRoot + path.sep) || !mime ||
+      !fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      res.writeHead(404); res.end('Não encontrado'); return;
+    }
+    res.writeHead(200, {
+      'Content-Type': mime,
+      'Cache-Control': ['.js', '.mjs', '.css'].includes(ext) ? 'no-store' : 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless'
+    });
+    fs.createReadStream(target).pipe(res);
+    return;
   }
+
   if (pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((n, r) => n + r.members.size, 0) }));
