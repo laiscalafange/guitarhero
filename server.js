@@ -69,11 +69,28 @@ function roomSnapshot(room) {
   return [...room.members].map(c => ({ peer: c.id, presence: c.presence }));
 }
 function announce(room) { broadcast(room, { type: 'peers', peers: roomSnapshot(room), hostId: room.hostId }); }
+// Histórico limitado à sala atual; os últimos 20 resultados são compartilhados com todos.
+function historySnapshot(room) { return (room.history || []).slice(0, 20); }
+function publishHistory(room) { broadcast(room, { type: 'history', rounds: historySnapshot(room) }); }
+function saveRoundScore(room, c, stats, leaving = false) {
+  if (!stats || !Number.isSafeInteger(stats.r)) return;
+  const round = room.history?.find(h => h.r === stats.r);
+  const player = round?.players.find(p => p.peer === c.id);
+  if (!player || player.fin) return;
+  player.score = Math.max(0, Math.min(100000000, Number(stats.sc) || 0));
+  player.misses = Math.max(0, Math.min(100000000, Number(stats.ms) || 0));
+  player.maxCombo = Math.max(0, Math.min(100000000, Number(stats.mx) || 0));
+  player.fin = !!stats.fin;
+  if (leaving && !player.fin) player.left = true;
+  // Não envia a cada atualização de pontos: só ao finalizar/sair.
+  if (player.fin || leaving) publishHistory(room);
+}
 function drop(c) {
   if (c.closed) return;
   c.closed = true;
   if (c.room) {
     const room = c.room;
+    saveRoundScore(room, c, c.presence.st, true);
     room.members.delete(c);
     if (room.hostId === c.id) {
       // Quem entrou primeiro entre os presentes assume, sem depender do navegador.
@@ -115,19 +132,31 @@ function applyPresence(c, d) {
   if (allowedInstruments.has(d.i) && (available.status !== 'ready' || available.instruments.includes(d.i))) p.i = d.i;
   if (allowedDifficulties.has(d.d)) p.d = d.d;
   if (typeof d.on === 'boolean') p.on = d.on;
+  // Alterar instrumento, dificuldade, teclas ou ativação cancela o pronto anterior.
+  if (['i', 'd', 'l', 'sg', 'on'].some(k => Object.hasOwn(d, k) && d[k] !== p[k])) {
+    p.ready = false;
+    delete p.readyRev;
+  }
+  if (Number.isSafeInteger(d.l) && d.l >= 3 && d.l <= 5) p.l = d.l;
   for (const k of ['sg', 'hs', 'hn']) {
     if (d[k] === null) delete p[k];
     else if (typeof d[k] === 'string') p[k] = d[k].slice(0, 160);
   }
+  if (typeof d.ready === 'boolean') {
+    p.ready = d.ready && p.on !== false && [3,4,5].includes(p.l) && p.sg === c.room.song?.meta.key;
+    if (p.ready) p.readyRev = c.room.song.meta.revision;
+    else delete p.readyRev;
+  }
   if (d.rd === null) delete p.rd;
   else if (Number.isSafeInteger(d.rd)) p.rd = d.rd;
-  if (d.st === null) delete p.st;
+  if (d.st === null) { saveRoundScore(c.room, c, p.st, true); delete p.st; }
   else if (d.st && typeof d.st === 'object' && Number.isSafeInteger(d.st.r)) {
     const s = d.st;
     const points = x => Math.max(0, Math.min(100000000, Number(x) || 0));
     p.st = { r: s.r, tot: points(s.tot), sc: points(s.sc), cb: points(s.cb), mx: points(s.mx),
       c: Array.isArray(s.c) ? s.c.slice(0, 3).map(points) : [0, 0, 0], ms: points(s.ms), cv: points(s.cv), fin: s.fin ? 1 : 0 };
   }
+  if (p.st?.fin) saveRoundScore(c.room, c, p.st);
   announce(c.room);
 }
 function isHost(c) { return c.room.hostId === c.id; }
@@ -156,20 +185,36 @@ function handleText(c, text) {
     for (const item of m.data.roster) {
       if (!item || typeof item.p !== 'string' || rosterIds.has(item.p)) return;
       const peer = active.find(p => p.id === item.p);
-      if (!peer || peer.presence.sg !== room.song.meta.key || peer.presence.i !== item.i || peer.presence.d !== item.d) return;
+      if (!peer || peer.presence.sg !== room.song.meta.key || peer.presence.i !== item.i ||
+          peer.presence.d !== item.d || peer.presence.l !== item.l ||
+          !peer.presence.ready || peer.presence.readyRev !== room.song.meta.revision) return;
       rosterIds.add(item.p);
     }
     room.pendingRound = { r: m.data.r, roster: [...rosterIds] };
   }
   if (m.event === 'start') {
-    const round = c.room.round;
+    const room = c.room, round = room.round;
     if (!round || round.r !== m.data.r || !Number.isFinite(m.data.at) ||
         round.roster.some(id => {
-          const peer = [...c.room.members].find(p => p.id === id);
-          return peer && peer.presence.rd !== round.r;
+          const peer = [...room.members].find(p => p.id === id);
+          return !peer || peer.presence.rd !== round.r || !peer.presence.ready ||
+            peer.presence.readyRev !== room.song?.meta.revision;
         })) return;
     // O mesmo início não pode ser transmitido mais de uma vez.
-    c.room.round = null;
+    room.round = null;
+    const entry = { r: round.r, song: room.song?.meta.name || 'Música', date: Date.now(),
+      players: round.roster.map(id => {
+        const peer = [...room.members].find(p => p.id === id);
+        const p = peer.presence;
+        return { peer: id, name: p.n, instrument: p.i, difficulty: p.d, lanes: p.l,
+          score: 0, misses: 0, maxCombo: 0, fin: false, left: false };
+      }) };
+    room.history ||= [];
+    room.history.unshift(entry);
+    if (room.history.length > 20) room.history.length = 20;
+    for (const peer of room.members) { peer.presence.ready = false; delete peer.presence.readyRev; }
+    // O cliente receberá o evento start antes da nova presença.
+
   }
   if (m.event === 'go' && c.room.song?.meta.kind === 'file') {
     const available = analysis.state(c.room,c.room.song.meta.key);
@@ -178,6 +223,7 @@ function handleText(c, text) {
   if (JSON.stringify(m.data).length > 12000) { delete c.room.pendingRound; return; }
   if (m.event === 'go') { c.room.round = c.room.pendingRound; delete c.room.pendingRound; }
   broadcast(c.room, { type: 'event', event: m.event, peer: c.id, data: m.data });
+  if (m.event === 'start') { announce(c.room); publishHistory(c.room); }
 }
 function receive(c, raw) {
   c.buffer = Buffer.concat([c.buffer, raw]);
@@ -242,7 +288,7 @@ server.on('upgrade', (req, socket, head) => {
   if ((!room && rooms.size >= MAX_ROOMS) || (room && room.members.size >= MAX_PEERS)) {
     socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return;
   }
-  if (!room) { room = { code, hostId: null, nextSeq: 1, members: new Set(), playlist: [], songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
+  if (!room) { room = { code, hostId: null, nextSeq: 1, members: new Set(), history: [], playlist: [], songRevision: 1, song: { bytes: null, meta: { key: 'rock', name: 'Garagem 120', revision: 1, kind: 'demo' } } }; rooms.set(code, room); }
   const accept = crypto.createHash('sha1').update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   socket.setNoDelay(true);
@@ -253,7 +299,7 @@ server.on('upgrade', (req, socket, head) => {
   socket.on('data', b => receive(c, b));
   socket.on('close', () => drop(c));
   socket.on('error', () => drop(c));
-  send(c, { type: 'welcome', id: c.id, code, token: c.uploadToken, song: room.song?.meta || null, playlist: music.snapshot(room) });
+  send(c, { type: 'welcome', id: c.id, code, token: c.uploadToken, song: room.song?.meta || null, playlist: music.snapshot(room), history: historySnapshot(room) });
   announce(room);
   if (head.length) receive(c, head);
 });

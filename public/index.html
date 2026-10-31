@@ -279,7 +279,7 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
       <section class="library" aria-labelledby="h-playlist">
         <div class="library-head"><h3 id="h-playlist">Playlist da sala</h3><span id="playlistCount" aria-live="polite">0 / 10</span></div>
         <p class="music-meta">Todos podem adicionar, escolher e remover. A lista dura enquanto houver alguém na sala.</p>
-        <h4>Prontas para jogar <span id="readyCount">0</span></h4>
+        <div class="library-head"><h4>Prontas para jogar <span id="readyCount">0</span></h4><button class="btn" id="randomSong" type="button" disabled>Sortear música da fila</button></div>
         <ul class="music-list" id="playlist" aria-label="Músicas prontas para jogar"></ul>
         <p class="music-empty" id="playlistEmpty">Nenhum áudio pronto ainda. Você pode jogar os exemplos enquanto a fila avança.</p>
         <h4>Na fila de análise <span id="pendingCount">0</span></h4>
@@ -301,6 +301,11 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
           <div id="keyBindings" class="keys"></div>
           <p id="keyBindingStatus" role="status" aria-live="polite">Clique em uma pista e pressione a tecla desejada. Vale para qualquer instrumento neste aparelho.</p>
           <button class="btn" id="resetKeys" type="button">Restaurar teclas padrão</button>
+        </div>
+        <div class="field">
+          <label for="laneCount">Quantidade de teclas por jogador</label>
+          <select id="laneCount"><option value="3">3 teclas</option><option value="4">4 teclas</option><option value="5">5 teclas</option></select>
+          <p>Você escolhe no seu aparelho; cada jogador pode usar uma quantidade diferente. As notas serão redistribuídas entre as pistas.</p>
         </div>
         <div class="field">
           <label for="look">Velocidade das notas</label>
@@ -337,13 +342,19 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
       <div class="ph"><h2 id="h-banda">Banda</h2></div>
       <div class="strips" id="strips"></div>
       <ul class="roster" id="roster"></ul>
-      <p class="hint">Cada pessoa toca no próprio teclado ou na tela. Você pode trocar as teclas em Ajustes. Segure as notas com rastro até a ponta passar pela linha. Quem escolhe o mesmo instrumento se ajuda: se um acerta a nota, vale como acerto para os dois. Só vira erro quando todos do instrumento erram.</p>
+      <p class="hint">Cada pessoa toca no próprio teclado ou na tela. Configure 3, 4 ou 5 teclas em Ajustes. Teclas apertadas fora de hora não descontam pontos; o erro conta quando uma nota passa sem ser completada. Segure as notas longas até o final.</p>
+    </section>
+    <section class="panel" aria-labelledby="historyTitle">
+      <div class="ph"><h2 id="historyTitle">Pontuações das rodadas anteriores</h2></div>
+      <p class="hint">Histórico compartilhado na sala (últimas 20 rodadas, enquanto ela estiver aberta).</p>
+      <p class="music-empty" id="historyEmpty">Nenhuma rodada jogada ainda.</p>
+      <div class="tablewrap"><table id="historyTable" aria-label="Histórico das rodadas"></table></div>
     </section>
 
     <div class="startbar full">
       <div class="startrow">
         <p class="summary" id="summary"></p>
-        <div class="row"><button class="btn" id="btnCopyInvite" type="button" hidden>Copiar convite</button><button class="btn" id="btnLeaveRoom" type="button">Trocar sala</button><button class="go" id="go" type="button">Analisar e tocar</button></div>
+        <div class="row"><button class="btn" id="btnCopyInvite" type="button" hidden>Copiar convite</button><button class="btn" id="btnLeaveRoom" type="button">Trocar sala</button><button class="btn solid" id="btnReady" type="button">Estou pronto</button><button class="go" id="go" type="button">Iniciar partida</button></div>
       </div>
       <div class="prog" id="progBox" hidden><i id="progFill"></i></div>
       <p class="status" id="netStatus" role="status" aria-live="polite"></p>
@@ -383,8 +394,9 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
     <div class="sheet-box">
       <div><h2 id="endTitle">Fim da música</h2><p class="sub" id="endSub"></p></div>
       <div class="tablewrap"><table id="endTable"></table></div>
+      <p class="music-meta">As pontuações desta rodada também ficam disponíveis no histórico da sala ao voltar.</p>
       <div class="row">
-        <button class="btn solid" id="btnAgain" type="button">Jogar de novo</button>
+        <button class="btn solid" id="btnAgain" type="button">Preparar outra rodada</button>
         <button class="btn" id="btnBack" type="button">Voltar à sala</button>
       </div>
     </div>
@@ -618,7 +630,7 @@ const g2 = el.cv.getContext('2d');
 const S = {
   tab: 'demo', demo: 'rock', song: null, busy: false, ai:null, analysisState:{status:'idle'},
   players: [
-    { on: true, instr: 'guitarra', diff: 'medio' },
+    { on: true, instr: 'guitarra', diff: 'medio', lanes: 4 },
     { on: true, instr: 'bateria', diff: 'medio' },
     { on: false, instr: 'baixo', diff: 'medio' },
     { on: false, instr: 'teclado', diff: 'medio' }
@@ -631,7 +643,7 @@ function loadPrefs() {
     const r = JSON.parse(localStorage.getItem(STORE) || 'null');
     if (!r) return;
     if (Array.isArray(r.players)) r.players.slice(0, 4).forEach((p, i) => {
-      if (p && INSTR[p.instr] && DIFFS[p.diff]) S.players[i] = { on: !!p.on, instr: p.instr, diff: p.diff };
+      if (p && INSTR[p.instr] && DIFFS[p.diff]) S.players[i] = { on: !!p.on, instr: p.instr, diff: p.diff, lanes: [3,4,5].includes(p.lanes) ? p.lanes : 4 };
     });
     if ([2, 1.5, 1.1].includes(r.look)) S.look = r.look;
     if (typeof r.latency === 'number') S.latency = Math.max(-200, Math.min(300, r.latency));
@@ -651,12 +663,13 @@ async function connectRoom(code) {
   return new Promise((resolve, reject) => {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(proto + '//' + location.host + '/ws?room=' + encodeURIComponent(code));
-    let playlist = { songs: [], selectedKey: null }, myId = '', hostId = '', token = '', ready = false, roster = [], closed = false, selected = null;
+    let playlist = { songs: [], selectedKey: null }, myId = '', hostId = '', token = '', ready = false, roster = [], history = [], closed = false, selected = null;
     const listeners = {}, peerWatch = [];
     const room = {
       get id() { return myId; },
       get hostId() { return hostId; },
       peers: () => roster.map(p => ({ ...p, sameTab: p.peer === myId, isMe: p.peer === myId })),
+      history: () => history,
       onPeers: fn => { peerWatch.push(fn); fn(); },
       on: (event, fn) => { (listeners[event] ||= []).push(fn); },
       emit: (event, data) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'event', event, data })); return Promise.resolve(); },
@@ -709,6 +722,7 @@ async function connectRoom(code) {
         token = m.token;
         selected = m.song || null;
         playlist = m.playlist || playlist;
+        history = Array.isArray(m.history) ? m.history : [];
         ready = true;
         clearTimeout(timeout);
         resolve(room);
@@ -716,6 +730,9 @@ async function connectRoom(code) {
         roster = Array.isArray(m.peers) ? m.peers : [];
         hostId = typeof m.hostId === 'string' ? m.hostId : '';
         peerWatch.forEach(fn => fn());
+      } else if (m.type === 'history') {
+        history = Array.isArray(m.rounds) ? m.rounds : [];
+        (listeners.history || []).forEach(fn => fn(history));
       } else if (m.type === 'roundCancelled') {
         (listeners.roundCancelled || []).forEach(fn => fn(m.round));
       } else if (m.type === 'analysis') {
@@ -767,6 +784,7 @@ const Net = (() => {
   N.peers = () => N.r ? (N.connected ? N.r.peers().filter(p => p.presence && p.presence.n) : []) : [{ peer: 'me', isMe: true, sameTab: true, presence: N.my }];
   N.me = () => (N.peers().find(p => p.sameTab) || {}).peer;
   N.host = () => N.peers().find(p => p.peer === N.r?.hostId) || null;
+  N.history = () => N.r ? N.r.history() : [];
   N.isHost = () => N.joined && N.connected && !!N.r?.hostId && N.r.hostId === N.r.id;
   N.syncClock = () => {
     if (N.isHost()) { N.off = 0; return; }
@@ -780,13 +798,14 @@ const Net = (() => {
     N.connected = true;
     N.joined = true;
     const me = S.players[0];
-    N.set({ n: name, i: me.instr, d: me.diff, on: me.on, sg: S.song ? S.song.key : null });
+    N.set({ n: name, i: me.instr, d: me.diff, l: me.lanes, on: me.on, ready: false, sg: S.song ? S.song.key : null });
     if (N.r) N.r.onPeers(onRoom);
     else N.set({ seq: 1 });
     const fromHost = m => { const h = N.host(); return !!h && m.peer === h.peer; };
     N.on('go', m => { if (fromHost(m)) onGo(m.data); });
     N.on('start', m => { if (fromHost(m)) onStart(m.data); });
     N.on('roundCancelled', onRoundCancelled);
+    N.on('history', renderHistory);
     N.on('ping', m => { if (N.isHost() && !m.sameTab && m.data) N.emit('pong', { to: m.peer, id: m.data.id, t0: m.data.t0, th: N.now() }); });
     N.on('pong', m => {
       const d = m.data; if (!d || d.to !== N.me()) return;
@@ -801,13 +820,13 @@ const Net = (() => {
   };
   return N;
 })();
-function pushMe() { const p = S.players[0]; Net.set({ i: p.instr, d: p.diff, on: p.on }); }
+function pushMe() { const p = S.players[0]; Net.set({ i: p.instr, d: p.diff, l: p.lanes, on: p.on, ready: false }); }
 function setLobbyNote(t) { el.progText.textContent = t || ''; }
 function rosterNow() {
   const sg = S.song && S.song.key;
   return Net.peers().filter(p => p.presence.on !== false && sg && p.presence.sg === sg && INSTR[p.presence.i] && DIFFS[p.presence.d])
     .sort((a, b) => num(a.presence.seq) - num(b.presence.seq) || (a.peer < b.peer ? -1 : 1)).slice(0, 8)
-    .map(p => ({ p: p.peer, n: String(p.presence.n).slice(0, 16), i: p.presence.i, d: p.presence.d }));
+    .map(p => ({ p: p.peer, n: String(p.presence.n).slice(0, 16), i: p.presence.i, d: p.presence.d, l: p.presence.l }));
 }
 let followed = null, lastHost = null, previousHostId = null;
 let roundPrepRevision = 0;
@@ -855,10 +874,34 @@ function hostWatch() {
 function renderRoster() {
   const h = Net.host(), hs = Net.r ? (Net.r.currentSong && Net.r.currentSong.key) : (S.song && S.song.key);
   $('#roster').innerHTML = Net.peers().slice().sort((a, b) => num(a.presence.seq) - num(b.presence.seq)).map(p => {
-    const q = p.presence, st = q.on === false ? 'assistindo' : (hs && q.sg !== hs ? 'recebendo música…' : 'pronto');
+    const q = p.presence, activeSong = Net.r?.currentSong, st = q.on === false ? 'assistindo' :
+      (hs && q.sg !== hs ? 'recebendo música…' : (q.ready && q.readyRev === activeSong?.revision ? '✓ pronto' : 'aguardando pronto'));
     return '<li style="--acc:' + (ACC[q.i] || '#9a9ec7') + '"><b>' + esc(q.n) + (p.sameTab ? ' (você)' : '') + (h && h.peer === p.peer ? ' · host' : '') + '</b><span>' +
-      (INSTR[q.i] ? INSTR[q.i].label : '') + ' · ' + (DIFFS[q.d] ? DIFFS[q.d].label : '') + '</span><em>' + st + '</em></li>';
+      (INSTR[q.i] ? INSTR[q.i].label : '') + ' · ' + (DIFFS[q.d] ? DIFFS[q.d].label : '') + ' · ' + (q.l || 4) + ' teclas</span><em>' + st + '</em></li>';
   }).join('');
+}
+function renderHistory() {
+  const rounds = Net.history();
+  $('#historyEmpty').hidden = rounds.length > 0;
+  const table = $('#historyTable');
+  if (!rounds.length) { table.innerHTML = ''; return; }
+  const participants = new Map();
+  for (const round of rounds) for (const p of round.players || []) {
+    const label = p.name || 'Jogador';
+    const key = p.peer;
+    const current = participants.get(key) || { name: label, total: 0, played: 0 };
+    current.total += num(p.score); current.played++;
+    participants.set(key, current);
+  }
+  const leaders = [...participants.values()].sort((a,b) => b.total-a.total);
+  let out = '<thead><tr><th colspan="4">Total da sala</th></tr><tr><th>Jogador</th><th>Pontos acumulados</th><th>Rodadas</th><th>Média</th></tr></thead><tbody>';
+  out += leaders.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + p.total + '</td><td>' + p.played + '</td><td>' + Math.round(p.total/p.played) + '</td></tr>').join('');
+  out += '</tbody><thead><tr><th colspan="4">Resultados por rodada</th></tr><tr><th>Rodada / música</th><th>Jogador</th><th>Pontos</th><th>Erros</th></tr></thead><tbody>';
+  for (const round of rounds) for (const p of round.players || []) {
+    let song = round.song || 'Música'; try { song = decodeURIComponent(song); } catch {}
+    out += '<tr><td>' + esc(song) + '</td><td>' + esc(p.name) + (p.fin ? '' : p.left ? ' (saiu)' : ' (em andamento)') + '</td><td>' + num(p.score) + '</td><td>' + num(p.misses) + '</td></tr>';
+  }
+  table.innerHTML = out + '</tbody>';
 }
 function onRoom() {
   if (!Net.joined) return;
@@ -884,14 +927,14 @@ function onRoom() {
   }
   if (hf && S.song && Net.my.hs !== S.song.key && !S.busy) Net.set({ hs: S.song.key, hn: S.song.name });
   if (hf !== lastHost) { lastHost = hf; renderDemos(); renderPlaylist(); }
-  renderRoster(); updateSummary();
+  renderRoster(); renderHistory(); updateSummary();
 }
 function onGo(d) {
   if (!d || !Array.isArray(d.roster)) return;
   if (G) quit();
   if (S.busy) return;
   const revision = ++roundPrepRevision;
-  d.roster = d.roster.filter(r => r && typeof r.p === 'string' && INSTR[r.i] && DIFFS[r.d]).slice(0, 8).map(r => ({ p: r.p, n: String(r.n || '?').slice(0, 16), i: r.i, d: r.d }));
+  d.roster = d.roster.filter(r => r && typeof r.p === 'string' && INSTR[r.i] && DIFFS[r.d] && [3,4,5].includes(r.l)).slice(0, 8).map(r => ({ p: r.p, n: String(r.n || '?').slice(0, 16), i: r.i, d: r.d, l: r.l }));
   S.prep = null;
   prepare(d, revision);
   // Uma falha de rede não deve deixar o lobby travado para sempre.
@@ -912,13 +955,17 @@ function onStart(d) {
   enterStage(pr.players, pr.roster, pr.r, num(d.at));
 }
 function hostGo() {
-  if (!Net.isHost() || S.busy || !S.song?.analysis || (S.prep && S.prep.players)) return;
+  if (!Net.isHost() || S.busy || !S.song?.analysis || S.prep) return;
   const active = Net.peers().filter(p => p.presence.on !== false);
   if (!active.length || active.some(p => p.presence.sg !== S.song.key)) {
     setLobbyNote('Espere todos os participantes receberem a música antes de começar.'); return;
   }
   const roster = rosterNow();
   if (!roster.length) return;
+  const revision = Net.r?.currentSong?.revision;
+  if (active.some(p => !p.presence.ready || p.presence.readyRev !== revision)) {
+    setLobbyNote('Espere todos clicarem em Estou pronto.'); return;
+  }
   Net.emit('go', { r: Math.floor(Net.now()), sg: S.song.key, roster });
 }
 function teamSize(P) {
@@ -928,22 +975,23 @@ function teamSize(P) {
 function onHit(d) {
   if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
   if (G.state === 'play' && G.tv >= (G.muteUntil[d.i] || 0)) setMutedI(d.i, false);
-  const P = G.players[0], l = d.l | 0;
-  if (P.instr !== d.i || l < 0 || l >= P.laneCount) return;
-  const list = P.lane[l];
-  for (let k = P.ptr[l]; k < list.length; k++) {
+  const P = G.players[0], l = d.l | 0, sourceLane = Number.isInteger(d.sl) ? d.sl : null;
+  if (P.instr !== d.i) return;
+  const list = sourceLane === null && l >= 0 && l < P.laneCount ? P.lane[l] : P.notes.map((_,i)=>i);
+  for (let k = 0; k < list.length; k++) {
     const n = P.notes[list[k]];
     if (n.t > num(d.t) + 0.1) break;
-    if ((n.st === 0 || n.st === 6) && Math.abs(n.t - num(d.t)) <= 0.09) { n.st = n.dur ? 6 : 3; break; } // espera completar uma nota longa
+    if ((sourceLane === null || n.sl === sourceLane) && (n.st === 0 || n.st === 6) && Math.abs(n.t - num(d.t)) <= 0.09) { n.st = n.dur ? 6 : 3; break; } // espera completar uma nota longa
   }
 }
 function onHold(d) {
   if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
-  const P = G.players[0], l = d.l | 0;
-  if (P.instr !== d.i || l < 0 || l >= P.laneCount) return;
-  for (const idx of P.lane[l]) {
+  const P = G.players[0], l = d.l | 0, sourceLane = Number.isInteger(d.sl) ? d.sl : null;
+  if (P.instr !== d.i) return;
+  const list = sourceLane === null && l >= 0 && l < P.laneCount ? P.lane[l] : P.notes.map((_,i)=>i);
+  for (const idx of list) {
     const n = P.notes[idx];
-    if (Math.abs(n.t - num(d.t)) <= 0.09 && (n.st === 0 || n.st === 6)) { n.st = 3; break; }
+    if ((sourceLane === null || n.sl === sourceLane) && Math.abs(n.t - num(d.t)) <= 0.09 && (n.st === 0 || n.st === 6)) { n.st = 3; break; }
   }
 }
 function onErr(d, m) {
@@ -1048,9 +1096,11 @@ async function pickDemo(id, token = ++selectionToken) {
   setStatus('Pronta: ' + S.song.name + ' · ' + fmtTime(S.song.duration), 'ok');
   updateSummary();
 }
-let selectionToken = 0;
+let selectionToken = 0, lastSongRevision = null;
 async function applyRoomSong(meta) {
   if (!Net.joined || !Net.r || !meta) return;
+  if (lastSongRevision !== null && lastSongRevision !== meta.revision) Net.set({ ready: false });
+  lastSongRevision = meta.revision;
   if (G || S.busy || (S.prep && S.prep.players)) {
     setLobbyNote('Nova música escolhida na sala. Ela ficará disponível ao retornar ao lobby.');
     return;
@@ -1177,6 +1227,7 @@ function renderPlaylist() {
   $('#playlistCount').textContent = list.songs.length + ' / 10';
   $('#readyCount').textContent=ready.length;$('#pendingCount').textContent=pending.length;
   $('#playlistEmpty').hidden = ready.length > 0;
+  $('#randomSong').disabled = !Net.isHost() || !ready.length || !!G || S.busy || !!S.prep;
   $('#pendingEmpty').hidden = pending.length > 0;
   $('#processQueue').hidden=!pending.length||Net.isHost()||!!S.ai?.useThisDevice;
   $('#queueDevice').textContent=(Net.isHost()||S.ai?.useThisDevice?'Este aparelho está habilitado para preparar a fila.':'O anfitrião prepara a fila. Você também pode habilitar este aparelho.')+' Mantenha a aba aberta.';
@@ -1289,6 +1340,17 @@ $('#analyzeSong').addEventListener('click',startAnalysis);
 $('#cancelAnalysis').addEventListener('click',()=>S.ai.cancel());
 $('#cancelBackground').addEventListener('click',()=>S.ai.cancel());
 $('#processQueue').addEventListener('click',()=>{S.ai?.processHere();renderPlaylist();});
+$('#randomSong').addEventListener('click', async () => {
+  const b = $('#randomSong');
+  if (b.disabled || !Net.isHost() || !Net.r || G || S.prep || S.busy) return;
+  b.disabled = true;
+  try {
+    // Servidor escolhe uma música pronta, sem repetir a atual quando houver outras.
+    const result = await Net.r.request('/api/playlist/random', { method: 'POST' });
+    setLibraryStatus('Sorteada: ' + songName(result.song) + '. Todos vão receber a mesma música.', 'ok');
+  } catch (e) { setLibraryStatus(e.message, 'err'); }
+  finally { renderPlaylist(); }
+});
 $('#gpuAnalysis').addEventListener('change',()=>{if(S.ai)S.ai.gpu=$('#gpuAnalysis').checked;});
 
 /* ---------- início ---------- */
@@ -1300,7 +1362,7 @@ function renderDemos() {
 }
 function renderStrips() {
   el.strips.innerHTML = S.players.slice(0, 1).map((p, i) => {
-    const imported=S.song?.analysis?.charts?.[p.instr],lanes=imported?.[p.diff]?.laneCount||Math.min(INSTR[p.instr].lanes, DIFFS[p.diff].lanes);
+    const lanes=p.lanes || 4;
     return '<div class="strip' + (p.on ? ' on' : '') + '" style="--acc:' + ACC[p.instr] + '" data-i="' + i + '">' +
       '<div class="strip-head"><span class="strip-n">J' + (i + 1) + '</span>' +
       '<button type="button" class="toggle" role="switch" aria-checked="' + p.on + '" data-act="toggle" aria-label="Jogador ' + (i + 1) + ' na banda">' + (p.on ? 'Na banda' : 'Fora') + '</button></div>' +
@@ -1312,12 +1374,19 @@ function renderStrips() {
   }).join('');
 }
 function updateSummary() {
-  const n = rosterNow().length, host = Net.isHost();
-  const active = Net.peers().filter(p => p.presence.on !== false).length;
-  const ready = !!S.song && !!S.song.analysis && n === active && active > 0 && (!Net.r || Net.r.currentSong?.key === S.song.key);
-  el.go.disabled = !(Net.joined && Net.connected && host && ready && !S.busy && !(S.prep && S.prep.players));
-  el.go.textContent = S.busy ? 'Analisando…' : !host && Net.joined ? 'Só o host inicia' : !ready && active ? 'Aguardando a banda' : 'Analisar e tocar';
-  el.summary.textContent = (S.song ? S.song.name : 'Nenhuma música') + ' · ' + n + '/' + active + ' prontos'  + (Net.joined && !Net.offline ? ' · sala ' + Net.code : '');
+  const ps = Net.peers(), n = rosterNow().length, host = Net.isHost();
+  const active = ps.filter(p => p.presence.on !== false).length;
+  const songOk = !!S.song?.analysis && n === active && active > 0 && Net.r?.currentSong?.key === S.song.key;
+  const rev = Net.r?.currentSong?.revision;
+  const readyCount = ps.filter(p => p.presence.on !== false && p.presence.ready && p.presence.readyRev === rev).length;
+  const me = ps.find(p => p.isMe), myReady = !!(me?.presence.ready && me.presence.readyRev === rev);
+  const canSetReady = Net.joined && Net.connected && songOk && !S.busy && !G && !S.prep;
+  $('#btnReady').disabled = !canSetReady;
+  $('#btnReady').textContent = myReady ? 'Cancelar pronto' : 'Estou pronto';
+  $('#btnReady').setAttribute('aria-pressed', String(myReady));
+  el.go.disabled = !(canSetReady && host && readyCount === active);
+  el.go.textContent = S.busy ? 'Analisando…' : !host && Net.joined ? 'Só o host inicia' : !songOk ? 'Aguardando a banda' : readyCount < active ? 'Esperando todos prontos' : 'Iniciar partida';
+  el.summary.textContent = (S.song ? S.song.name : 'Nenhuma música') + ' · ' + readyCount + '/' + active + ' jogadores prontos' + (Net.joined && !Net.offline ? ' · sala ' + Net.code : '');
 }
 function setTab(t) {
   S.tab = t;
@@ -1339,9 +1408,32 @@ function setBusy(b) {
 let G = null, W = 0, H = 0, dpr = 1;
 const C_PERS = 3.4, S_MIN = 1 / (1 + C_PERS);
 
+function adaptLanes(chart, wanted) {
+  const from = chart.laneCount;
+  if (from === wanted) return { laneCount: wanted,
+    notes: chart.notes.map(n => ({ ...n, sl: Number.isInteger(n.sl) ? n.sl : n.lane })) };
+  const mapped = chart.notes.map(n => ({ ...n, sl: Number.isInteger(n.sl) ? n.sl : n.lane,
+    lane: Math.min(wanted - 1, Math.floor((n.lane + .5) * wanted / from)) }));
+  // Duas notas simultâneas não podem ocupar a mesma pista: mantém a maior sustentação.
+  mapped.sort((a,b) => a.t-b.t || a.lane-b.lane);
+  const notes = [];
+  for (const n of mapped) {
+    const old = notes.findLast(p => p.lane === n.lane && Math.abs(p.t-n.t)<.025);
+    if (old) { old.dur = Math.max(old.dur || 0,n.dur || 0); continue; }
+    notes.push(n);
+  }
+  // Evita slides sobrepostos na mesma pista após a redistribuição.
+  const next = new Map();
+  for (let i=notes.length-1;i>=0;i--) {
+    const n=notes[i], upcoming=next.get(n.lane);
+    if (upcoming && n.dur) n.dur = Math.max(0, Math.min(n.dur, upcoming.t-n.t-.04));
+    next.set(n.lane,n);
+  }
+  return { laneCount: wanted, notes };
+}
 function makePlayer(cfg, chart) {
   const D = DIFFS[cfg.diff], L = chart.laneCount;
-  const notes = chart.notes.map(n => ({ t: n.t, lane: n.lane, dur: n.dur || 0, st: 0 }));
+  const notes = chart.notes.map(n => ({ t: n.t, lane: n.lane, sl: n.sl ?? n.lane, dur: n.dur || 0, st: 0 }));
   const lane = Array.from({ length: L }, () => []);
   notes.forEach((n, i) => lane[n.lane].push(i));
   return {
@@ -1354,7 +1446,7 @@ function makePlayer(cfg, chart) {
 }
 
 async function prepare(go, revision) {
-  const act = go.roster.map(r => ({ instr: r.i, diff: r.d, p: r.p, i: 0 }));
+  const act = go.roster.map(r => ({ instr: r.i, diff: r.d, lanes: r.l, p: r.p, i: 0 }));
   const mine = act.find(a => a.p === Net.me());
   if (!mine || !S.song || S.busy) { S.prep = { r: go.r, players: null, roster: go.roster }; setLobbyNote('Rodada em andamento. Você entra na próxima.'); return; }
   const song = S.song;
@@ -1379,7 +1471,7 @@ async function prepare(go, revision) {
       song.rest=rest;song.playStems=wanted;
     }
     setProg(.92,'Montando a pista com as notas deste instrumento…');
-    const chart=JamCharts.fromManifest(song.analysis,mine.instr,mine.diff,song.duration);
+    const chart=adaptLanes(JamCharts.fromManifest(song.analysis,mine.instr,mine.diff,song.duration), mine.lanes || 4);
     const players=[makePlayer(mine,chart)];
     setProg(1, 'Pronto.');
     await tick();
@@ -1505,10 +1597,10 @@ function update(tv) {
         n.st = 1;
         P.score += 50;
         P.last = { text: 'SLIDE COMPLETO +50', color: '#38e3b0', t0: tv };
-        Net.emit('hold', { r: G.round, i: P.instr, l: n.lane, t: +n.t.toFixed(3) });
+        Net.emit('hold', { r: G.round, i: P.instr, l: n.lane, sl: n.sl, t: +n.t.toFixed(3) });
       }
       if (n.st === 3 && (n.dur ? tv >= n.t + n.dur : n.t < tv - P.win.ok)) { n.st = 4; P.cov++; }
-      else if ((n.st === 0 || n.st === 6) && n.t + (n.st === 6 ? n.dur : 0) < tv - P.win.ok - grace) {
+      else if ((n.st === 0 || n.st === 6 || n.st === 7) && n.t + ((n.st === 6 || n.st === 7) ? n.dur : 0) < tv - P.win.ok - grace) {
         n.st = 2; P.miss++; breakCombo(P); failFx(P, tv);
         P.last = { text: 'ERROU', color: '#ff5c7a', t0: tv };
         if (n.t >= tv - 1.0) {                                   // aba em segundo plano: erros muito antigos passam em silêncio
@@ -1518,7 +1610,7 @@ function update(tv) {
           Net.emit('err', { r: G.round, i: P.instr, m: 1, s: snd ? 1 : 0 });
         }
       }
-      if (adv && n.st !== 0 && n.st !== 3) k = q + 1; else adv = false;
+      if (adv && n.st !== 0 && n.st !== 3 && n.st !== 7) k = q + 1; else adv = false;
     }
     P.ptr[l] = k;
   }
@@ -1535,9 +1627,11 @@ function press(pi, l) {
   for (let k = P.ptr[l]; k < list.length; k++) {
     const c = P.notes[list[k]];
     if (c.t > tv + P.win.ok) break;
-    if ((c.st === 0 || c.st === 3 || c.st === 6) && Math.abs(tv - c.t) <= P.win.ok) { n = c; break; }
+    if (((c.st === 0 || c.st === 3 || c.st === 6) && Math.abs(tv - c.t) <= P.win.ok) ||
+        (c.st === 7 && tv <= c.t + c.dur + P.win.ok)) { n = c; break; }
   }
   if (n) {
+    if (n.st === 7) { n.st = 5; playKeyHit(l); P.last = { text: 'SEGURANDO', color: '#38e3b0', t0: tv }; return; }
     const ad = Math.abs(tv - n.t);
     n.st = n.dur ? 5 : 1; if (tv >= (G.muteUntil[P.instr] || 0)) setMutedI(P.instr, false);
     const j = ad <= P.win.perfect ? 0 : ad <= P.win.good ? 1 : 2;
@@ -1552,15 +1646,12 @@ function press(pi, l) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = 90 + Math.random() * 170;
       G.fx.push({ x, y: P.yHit, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45, c: col });
     }
-    Net.emit('hit', { r: G.round, i: P.instr, l, t: +n.t.toFixed(3) });
+    Net.emit('hit', { r: G.round, i: P.instr, l, sl: n.sl, t: +n.t.toFixed(3) });
     return;
   }
+  // Pressionar fora do tempo não é erro: somente uma nota que passa sem acerto conta.
   P.stray++;
-  const mute = P.diff !== 'facil' && teamSize(P) === 0;          // um erro solto de quem divide o instrumento não corta o som da dupla
-  if (P.diff !== 'facil') breakCombo(P);
-  if (mute) { setMutedI(P.instr, true); G.muteUntil[P.instr] = tv + 0.45; }
-  failFx(P, tv); playErrI(P.instr);
-  Net.emit('err', { r: G.round, i: P.instr, m: mute ? 1 : 0, s: 1 });
+  playKeyHit(l);
 }
 function release(pi, l) {
   const P = G && G.players[pi];
@@ -1571,11 +1662,8 @@ function release(pi, l) {
     const n = P.notes[idx];
     if (n.st !== 5) continue;
     if (G.tv >= n.t + n.dur - 0.07) return; // pequena tolerância na ponta da nota
-    n.st = 2; P.miss++; breakCombo(P);
-    failFx(P, G.tv); playErrI(P.instr);
-    P.last = { text: 'SOLTOU ANTES DO FIM', color: '#ff5c7a', t0: G.tv };
-    setMutedI(P.instr, true); G.muteUntil[P.instr] = G.tv + 0.45;
-    Net.emit('err', { r: G.round, i: P.instr, m: 1, s: 1 });
+    n.st = 7; // pendente de recuperar: só erra se o fim passar sem segurar
+    P.last = { text: 'SEGURE ATÉ O FIM', color: '#ffc933', t0: G.tv };
     break;
   }
 }
@@ -1897,7 +1985,7 @@ $('#btnResume').addEventListener('click', togglePause);
 $('#btnQuit').addEventListener('click', quit);
 $('#btnBack').addEventListener('click', quit);
 
-$('#btnAgain').addEventListener('click', () => { if (Net.isHost()) { quit(); hostGo(); } });
+$('#btnAgain').addEventListener('click', () => { if (Net.isHost()) { quit(); setLobbyNote('Para outra rodada, todos devem clicar em Estou pronto novamente.'); } });
 $('#btnFull').addEventListener('click', () => {
   try {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -1912,7 +2000,7 @@ el.demos.addEventListener('click', e => {
 });
 el.strips.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'), s = e.target.closest('.strip');
-  if (!b || !s || S.busy || b.disabled) return;
+  if (!b || !s || S.busy || G || S.prep || b.disabled) return;
   const p = S.players[+s.dataset.i];
   if (b.dataset.act === 'toggle') p.on = !p.on;
   else if (b.dataset.act === 'instr') p.instr = b.dataset.v;
@@ -1934,6 +2022,20 @@ el.lat.addEventListener('input', () => { S.latency = parseInt(el.lat.value, 10) 
 for (const [which, ids] of [['music', ['musicVolume', 'stageMusicVolume']], ['key', ['keyVolume', 'stageKeyVolume']]]) {
   for (const id of ids) $('#' + id).addEventListener('input', event => updateVolume(which, event.target.value));
 }
+$('#btnReady').addEventListener('click', () => {
+  const rev = Net.r?.currentSong?.revision;
+  const me = Net.peers().find(p => p.isMe);
+  const nowReady = !!(me?.presence.ready && me.presence.readyRev === rev);
+  if ($('#btnReady').disabled) return;
+  Net.set({ ready: !nowReady });
+  $('#btnReady').disabled = true; // a próxima presença confirma o novo estado
+});
+$('#laneCount').addEventListener('change', () => {
+  const count = Number($('#laneCount').value);
+  if (![3,4,5].includes(count) || G || S.prep) return;
+  S.players[0].lanes = count;
+  savePrefs(); renderStrips(); pushMe(); updateSummary();
+});
 el.go.addEventListener('click', hostGo);
 const drop = $('#drop'), fileIn = $('#fileIn');
 fileIn.addEventListener('change', () => loadFiles([...fileIn.files]));
@@ -1993,6 +2095,7 @@ $('#resetKeys').addEventListener('click',()=>{applyKeys(DEFAULT_KEYS);pendingKey
 try{applyKeys(JSON.parse(localStorage.getItem(KEY_STORE)||'null'));}catch(error){/* padrão se armazenamento inválido */}
 renderKeyBindings();
 loadPrefs();
+$('#laneCount').value = String(S.players[0].lanes || 4);
 el.look.value = String(S.look);
 el.lat.value = String(S.latency); el.latOut.textContent = S.latency + ' ms';
 updateVolume('music', S.musicVolume);

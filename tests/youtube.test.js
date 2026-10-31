@@ -34,3 +34,30 @@ test('importação com provedor simulado: áudio compartilhado, deduplicação e
   assert.equal((await doImport('https://example.com/audio')).status, 400);
   service.releaseRoom(room); assert.equal(service.stats().audioBytes, 0);
 });
+
+test('apresenta motivos distintos para falhas do YouTube sem expor detalhes internos', async t => {
+  if (process.platform === 'win32') return t.skip('Executáveis simulados neste teste são POSIX.');
+  const fs = require('node:fs/promises');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'guitaband-youtube-test-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const cli = path.join(dir, 'yt-dlp-fake');
+  for (const [raw, expected] of [
+    ["Sign in to confirm you're not a bot", 'verificação do servidor'],
+    ['HTTP Error 403: Forbidden', 'HTTP 403'],
+    ['HTTP Error 429: Too Many Requests', 'HTTP 429'],
+    ['This is a private video', 'privado'],
+    ['Video unavailable', 'indisponível'],
+    ['Requested format is not available', 'formato de áudio'],
+  ]) {
+    await fs.writeFile(cli, '#!/bin/sh\necho ' + JSON.stringify(raw) + ' >&2\nexit 1\n', { mode: 0o755 });
+    const result = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(path.join(__dirname, '..', 'youtube.js'))}).search('sMcWOaJFuw0').catch(e => { console.log(e.message); process.exitCode = 1; })`], {
+      env: { ...process.env, YT_DLP_PATH: cli }, encoding: 'utf8', timeout: 12000,
+    });
+    assert.equal(result.status, 1, 'O comando simulado deve falhar');
+    assert.match(result.stdout, new RegExp(expected, 'i'));
+    assert.doesNotMatch(result.stdout, /\.com\/watch|127\.0\.0\.1|token/i);
+  }
+});
