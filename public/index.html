@@ -85,6 +85,12 @@ h1{font:900 clamp(52px,10vw,112px)/.84 var(--f-display);text-transform:uppercase
 .music-info strong{overflow-wrap:anywhere;font-size:15px}
 .music-actions{display:flex;gap:6px;flex-wrap:wrap}
 .music-actions .btn{padding:8px 10px;font-size:13px}
+.chart-extras{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.chart-extras summary{cursor:pointer;font-weight:700;color:var(--ink)}
+.chart-extras-body{display:grid;gap:10px;padding-top:12px}
+.chart-extras label{font-size:13px;color:var(--muted)}
+.chart-extras select{min-width:0;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel2)}
+.chart-extras a.btn{display:inline-flex;align-items:center;text-decoration:none}
 .search-form{display:grid;gap:10px;margin-bottom:12px}
 .search-bar{display:flex;gap:8px}
 .search-bar input{min-width:0;flex:1;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
@@ -218,6 +224,38 @@ td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8p
       <p class="status" id="songStatus" role="status" aria-live="polite"></p>
       <div id="pan-charts" role="tabpanel" aria-labelledby="tab-charts" hidden>
         <form id="chartSearchForm"><label for="chartQuery">Procurar na biblioteca Chorus Encore</label><div class="search-bar"><input id="chartQuery" type="search" minlength="2" maxlength="160" required placeholder="Artista e nome da música"><button class="btn solid" type="submit">Consultar</button></div></form>
+        <details class="chart-extras">
+          <summary>Mais bibliotecas e música brasileira</summary>
+          <div class="chart-extras-body">
+            <label for="brArtist">Pesquise um artista brasileiro no catálogo atual:</label>
+            <div class="search-bar">
+              <select id="brArtist" aria-label="Artista brasileiro">
+                <option value="">Escolha um artista</option>
+                <optgroup label="Rock e metal nacional">
+                  <option>Pitty</option><option>Charlie Brown Jr.</option><option>Legião Urbana</option>
+                  <option>Raimundos</option><option>CPM 22</option><option>Fresno</option>
+                  <option>Skank</option><option>Sepultura</option><option>Mamonas Assassinas</option>
+                </optgroup>
+                <optgroup label="MPB e pop brasileiro">
+                  <option>Djavan</option><option>Gilberto Gil</option><option>Tim Maia</option>
+                  <option>Alceu Valença</option><option>Marisa Monte</option><option>Tribalistas</option>
+                  <option>Anitta</option><option>Ludmilla</option>
+                </optgroup>
+                <optgroup label="Rap, pagode e sertanejo">
+                  <option>Racionais MC's</option><option>Emicida</option><option>Raça Negra</option>
+                  <option>Marília Mendonça</option><option>Jorge &amp; Mateus</option>
+                </optgroup>
+              </select>
+              <button class="btn" id="brArtistSearch" type="button">Buscar artista</button>
+            </div>
+            <p class="music-meta">São sugestões de busca, não uma lista de músicas garantidas.</p>
+            <div class="music-actions">
+              <a class="btn" href="https://rhythmverse.co/songfiles/game" target="_blank" rel="noopener noreferrer">RhythmVerse</a>
+              <a class="btn" href="https://customsongscentral.com/" target="_blank" rel="noopener noreferrer">Custom Songs Central</a>
+            </div>
+            <p class="music-meta">As bibliotecas extras abrem em outra aba. Baixe um pacote compatível com direitos de uso adequados e importe em "ZIP ou arquivos" abaixo. Arquivos do Rock Band em formato CON não são aceitos diretamente.</p>
+          </div>
+        </details>
         <p class="music-meta">Clique em Importar pacote para baixar o áudio e as notas juntos e adicionar à sala. Confira artista, versão, duração e instrumentos. Você também pode importar arquivos locais.</p>
         <ul class="music-list" id="chartResults" aria-label="Partituras do catálogo"></ul>
         <div class="music-actions"><label class="btn" for="chartFiles">Importar ZIP ou arquivos</label><label class="btn" for="chartFolder">Importar pasta</label></div>
@@ -1802,6 +1840,7 @@ fileIn.addEventListener('change', () => loadFiles([...fileIn.files]));
 drop.addEventListener('drop', e => loadFiles([...(e.dataTransfer?.files || [])]));
 $('#youtubeForm').addEventListener('submit', searchYoutube);
 $('#chartSearchForm').addEventListener('submit',searchChartLibrary);
+$('#brArtistSearch').addEventListener('click',()=>{const artist=$('#brArtist').value.trim();if(artist)searchChartLibrary(null,artist);});
 $('#chartFiles').addEventListener('change',()=>importChartFiles([...$('#chartFiles').files]));
 $('#chartFolder').addEventListener('change',()=>importChartFiles([...$('#chartFolder').files]));
 $('#chartResults').addEventListener('click',e=>{const b=e.target.closest('[data-download-chart]');if(b&&!b.disabled)importCatalogPackage(b.dataset.downloadChart);});
