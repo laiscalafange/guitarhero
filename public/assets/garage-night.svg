@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 820" preserveAspectRatio="xMidYMid slice">
+<defs>
+ <linearGradient id="night" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#10182c"/><stop offset=".62" stop-color="#3e3c56"/><stop offset="1" stop-color="#695366"/></linearGradient>
+ <linearGradient id="road" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#30313e"/><stop offset="1" stop-color="#101521"/></linearGradient>
+ <linearGradient id="garage" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#715164"/><stop offset="1" stop-color="#252d3c"/></linearGradient>
+ <pattern id="brick" width="65" height="28" patternUnits="userSpaceOnUse"><path d="M0 0H65M0 28H65M32 0V14M0 14H65M0 14V28M65 14V28" fill="none" stroke="#d2afa1" stroke-opacity=".09" stroke-width="2"/></pattern>
+ <pattern id="stars" width="220" height="150" patternUnits="userSpaceOnUse"><circle cx="20" cy="33" r="1.3" fill="#d2dae0" opacity=".65"/><circle cx="174" cy="100" r="1" fill="#e2d8c9" opacity=".7"/></pattern>
+</defs>
+<!-- flat 2D illustrated midnight street, no 3D objects -->
+<rect width="1440" height="820" fill="url(#night)"/><rect width="1440" height="450" fill="url(#stars)"/><circle cx="1115" cy="116" r="44" fill="#d8c4a3" opacity=".7"/>
+<path d="M0 480V250H98V316H153V204H272V280H344V181H457V319H531V235H634V459H737V300H829V454H944V232H1056V283H1142V193H1258V285H1342V239H1440V490Z" fill="#242b41"/>
+<g fill="#b8a6a3" opacity=".32"><rect x="174" y="240" width="15" height="20"/><rect x="208" y="240" width="15" height="20"/><rect x="378" y="230" width="20" height="22"/><rect x="406" y="278" width="20" height="22"/><rect x="975" y="267" width="18" height="19"/><rect x="1180" y="223" width="18" height="19"/><rect x="1212" y="257" width="18" height="19"/></g>
+<rect y="500" width="1440" height="320" fill="url(#road)"/><path d="M0 575H1440" stroke="#9f8392" stroke-width="5" opacity=".4"/><path d="M0 762H1440" stroke="#a7a09b" stroke-width="3" opacity=".18"/>
+<!-- parked garage with comic outlines -->
+<rect x="120" y="285" width="645" height="318" fill="url(#garage)" stroke="#141a29" stroke-width="10"/><rect x="126" y="289" width="630" height="310" fill="url(#brick)"/>
+<path d="M88 285L154 232H742L790 285Z" fill="#1b2233" stroke="#0d1320" stroke-width="10"/><path d="M170 230H726" stroke="#ba7581" stroke-width="6"/>
+<rect x="173" y="327" width="520" height="272" fill="#161d2c" stroke="#c68d7b" stroke-width="8"/>
+<rect x="192" y="351" width="483" height="232" fill="#252333"/><path d="M192 385H675M192 420H675M192 455H675M192 490H675M192 525H675" stroke="#86777c" stroke-width="5" opacity=".55"/>
+<path d="M222 365H645V567H222Z" fill="#141a25" opacity=".52"/>
+<rect x="350" y="248" width="196" height="44" rx="3" fill="#272d3b" stroke="#d8a6a0" stroke-width="4"/><text x="448" y="279" text-anchor="middle" fill="#f0d3b2" font-family="sans-serif" font-size="23" font-weight="bold" letter-spacing="4">GARAGEM</text>
+<!-- soft light cones -->
+<path d="M300 322L145 585H460L360 322Z" fill="#e0a375" opacity=".11"/><path d="M590 322L475 585H765L639 322Z" fill="#b595bd" opacity=".09"/>
+<!-- standing guitar silhouette -->
+<path d="M286 545Q251 541 252 509Q255 493 268 490L279 464L301 464L315 493Q340 508 324 535Q311 554 286 545Z" fill="#9b5c68" stroke="#1b1c29" stroke-width="6"/><rect x="286" y="390" width="10" height="109" rx="4" fill="#b6a0a0" stroke="#1b1c29" stroke-width="4"/><path d="M286 400L278 391M296 400L304 391" stroke="#e6d3c1" stroke-width="4"/><circle cx="289" cy="510" r="13" fill="#313140" stroke="#e0b7a5" stroke-width="4"/>
+<!-- amplifier -->
+<rect x="408" y="488" width="125" height="98" rx="5" fill="#101724" stroke="#777b88" stroke-width="7"/><rect x="421" y="506" width="98" height="65" fill="#30313d" stroke="#5d6572" stroke-width="3"/><circle cx="471" cy="537" r="25" fill="#161d2a" stroke="#757e8b" stroke-width="5"/>
+<!-- drums -->
+<ellipse cx="596" cy="501" rx="57" ry="16" fill="#987786" stroke="#161d29" stroke-width="5"/><rect x="547" y="501" width="98" height="58" fill="#8c576b" stroke="#161d29" stroke-width="5"/><ellipse cx="596" cy="558" rx="49" ry="15" fill="#242b36" stroke="#161d29" stroke-width="5"/><path d="M560 574L548 588M628 574L640 588" stroke="#aab0ae" stroke-width="6"/>
+<!-- streetlamps -->
+<path d="M948 625V210H1029" fill="none" stroke="#161e2b" stroke-width="16"/><path d="M1000 220H1059V239H1000Z" fill="#dac1a1" stroke="#31313d" stroke-width="6"/><path d="M1004 241L855 625H1200L1059 241Z" fill="#edb886" opacity=".10"/>
+<!-- fence and powerlines -->
+<path d="M800 557H1440M800 603H1440M825 540V665M940 540V665M1070 540V665M1200 540V665M1365 540V665" stroke="#202735" stroke-width="9"/><path d="M0 165Q310 222 670 156T1440 164" fill="none" stroke="#191e30" stroke-width="4"/>
+<!-- scattered flat poster details -->
+<rect x="1233" y="347" width="120" height="150" fill="#3e4350" stroke="#1f2230" stroke-width="7" transform="rotate(5 1293 422)"/><path d="M1258 396L1335 374L1278 468L1311 425Z" fill="#b76d79" opacity=".8"/><text x="1270" y="480" font-family="sans-serif" font-size="15" font-weight="bold" fill="#ddd2c8">LIVE!</text>
+<!-- road reflections -->
+<path d="M85 709H455M770 743H1094M1150 674H1410" stroke="#bc8b86" stroke-width="5" opacity=".26"/>
+</svg>

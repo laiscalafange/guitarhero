@@ -54,8 +54,8 @@ const LANE_COL = {
   bateria: ['#ff8a1f', '#f0323c', '#ffe033', '#2f7bff', '#2fd04a']  // inclui a quinta pista das partituras importadas
 };
 const PAD_NAMES = ['BUMBO', 'CAIXA', 'CHIMBAL', 'PRATO', 'TOM / PRATO'];
-const FD = '"Big Shoulders Display","Arial Narrow",Impact,sans-serif';
-const FM = '"DM Mono",ui-monospace,Menlo,monospace';
+const FD = '"Press Start 2P","Silkscreen","Courier New",monospace';
+const FM = '"Press Start 2P","Silkscreen","Courier New",monospace';
 
 const el = {
   setup: $('#setup'), stage: $('#stage'), cv: $('#cv'), strips: $('#strips'),
@@ -66,6 +66,15 @@ const el = {
   sheetPause: $('#sheetPause'), sheetEnd: $('#sheetEnd')
 };
 const g2 = el.cv.getContext('2d');
+window.JAM_STAGE_VERSION = 'ARCADE-3.2';
+console.info('[Jam na Garagem] Palco ARCADE-3.2 carregado');
+// Estilos exclusivos do palco. Evita depender da ordem das folhas de estilo da interface.
+if (!document.querySelector('link[data-jam-stage-art]')) {
+  const stageStyle = document.createElement('link');
+  stageStyle.rel = 'stylesheet'; stageStyle.href = '/css/jam-stage.css?v=3.2.0';
+  stageStyle.dataset.jamStageArt = '1'; document.head.appendChild(stageStyle);
+}
+
 
 const S = {
   tab: 'demo', demo: 'rock', song: null, busy: false, ai:null, analysisState:{status:'idle'},
@@ -222,26 +231,102 @@ function renderRoster() {
 function renderHistory() {
   const rounds = Net.history();
   $('#historyEmpty').hidden = rounds.length > 0;
-  const table = $('#historyTable');
-  if (!rounds.length) { table.innerHTML = ''; return; }
+  let board = $('#historyTable');
+  if (board && board.tagName === 'TABLE') {
+    const replacement = document.createElement('div');
+    replacement.id = 'historyTable';
+    replacement.className = 'history-dashboard';
+    replacement.setAttribute('aria-label', 'Histórico das rodadas');
+    board.replaceWith(replacement);
+    board = replacement;
+  }
+  if (!rounds.length) { board.innerHTML = ''; return; }
+
+  const fmt = (value) => num(value).toLocaleString('pt-BR');
   const participants = new Map();
-  for (const round of rounds) for (const p of round.players || []) {
-    const label = p.name || 'Jogador';
-    const key = p.peer;
-    const current = participants.get(key) || { name: label, total: 0, played: 0 };
-    current.total += num(p.score); current.played++;
-    participants.set(key, current);
+  let totalPoints = 0, totalErrors = 0, totalEntries = 0;
+
+  for (const round of rounds) {
+    for (const p of round.players || []) {
+      const label = p.name || 'Jogador';
+      const key = p.peer || label;
+      const current = participants.get(key) || { name: label, total: 0, played: 0, best: 0, misses: 0 };
+      current.total += num(p.score);
+      current.played++;
+      current.best = Math.max(current.best, num(p.score));
+      current.misses += num(p.misses);
+      participants.set(key, current);
+      totalPoints += num(p.score);
+      totalErrors += num(p.misses);
+      totalEntries++;
+    }
   }
-  const leaders = [...participants.values()].sort((a,b) => b.total-a.total);
-  let out = '<thead><tr><th colspan="4">Total da sala</th></tr><tr><th>Jogador</th><th>Pontos acumulados</th><th>Rodadas</th><th>Média</th></tr></thead><tbody>';
-  out += leaders.map(p => '<tr><td>' + esc(p.name) + '</td><td>' + p.total + '</td><td>' + p.played + '</td><td>' + Math.round(p.total/p.played) + '</td></tr>').join('');
-  out += '</tbody><thead><tr><th colspan="4">Resultados por rodada</th></tr><tr><th>Rodada / música</th><th>Jogador</th><th>Pontos</th><th>Erros</th></tr></thead><tbody>';
-  for (const round of rounds) for (const p of round.players || []) {
-    let song = round.song || 'Música'; try { song = decodeURIComponent(song); } catch {}
-    out += '<tr><td>' + esc(song) + '</td><td>' + esc(p.name) + (p.fin ? '' : p.left ? ' (saiu)' : ' (em andamento)') + '</td><td>' + num(p.score) + '</td><td>' + num(p.misses) + '</td></tr>';
-  }
-  table.innerHTML = out + '</tbody>';
+
+  const leaders = [...participants.values()].sort((a, b) => b.total - a.total);
+  const best = leaders[0] || { name: '—', total: 0, played: 0 };
+  const highestTotal = Math.max(1, ...leaders.map(p => p.total));
+  const averagePoints = totalEntries ? Math.round(totalPoints / totalEntries) : 0;
+
+  const statCards = [
+    ['Rodadas salvas', fmt(rounds.length), 'Últimas partidas armazenadas na sala.'],
+    ['Melhor jogador', esc(best.name), fmt(best.total) + ' pontos acumulados'],
+    ['Pontos da sala', fmt(totalPoints), fmt(averagePoints) + ' por resultado registrado'],
+    ['Erros registrados', fmt(totalErrors), leaders.length + ' jogador(es) no histórico']
+  ].map(([label, value, sub]) =>
+    '<div class="history-stat"><span class="history-stat-label">' + label + '</span><span class="history-stat-value">' + value + '</span><p class="history-stat-sub">' + sub + '</p></div>'
+  ).join('');
+
+  const leaderItems = leaders.map((p, idx) => {
+    const width = Math.max(12, Math.round((p.total / highestTotal) * 100));
+    return '<div class="history-leader-item">'
+      + '<div class="history-leader-rank">#' + (idx + 1) + '</div>'
+      + '<div class="history-leader-meta">'
+      +   '<div class="history-leader-name"><span>' + esc(p.name) + '</span><small class="history-leader-badge">' + p.played + ' rodada(s)</small></div>'
+      +   '<div class="history-leader-bar"><i style="width:' + width + '%"></i></div>'
+      + '</div>'
+      + '<div class="history-leader-nums"><span class="history-leader-score">' + fmt(p.total) + ' pts</span><span class="history-leader-avg">média ' + fmt(Math.round(p.total / Math.max(1, p.played))) + '</span></div>'
+      + '</div>';
+  }).join('');
+
+  const roundCards = rounds.slice().reverse().map((round, roundIndex) => {
+    let song = round.song || 'Música';
+    try { song = decodeURIComponent(song); } catch {}
+    const players = (round.players || []).map((p, idx) => {
+      const status = p.fin ? 'finalizou' : p.left ? 'saiu' : 'em andamento';
+      const palette = ['#f25c83', '#458fff', '#ffd052', '#47d9bf', '#ae90ed'];
+      const acc = palette[idx % palette.length];
+      return '<div class="history-player-row">'
+        + '<div class="history-player-name" style="--acc:' + acc + '"><i class="history-player-dot"></i><span class="history-player-label">' + esc(p.name || 'Jogador') + '</span></div>'
+        + '<span class="history-chip score">' + fmt(p.score) + ' pts</span>'
+        + '<span class="history-chip error">' + fmt(p.misses) + ' erros</span>'
+        + '<span class="history-chip status">' + status + '</span>'
+        + '</div>';
+    }).join('');
+    return '<article class="history-round-item">'
+      + '<div class="history-round-top">'
+      +   '<div><span class="history-round-kicker">Rodada ' + (rounds.length - roundIndex) + '</span><h4 class="history-round-song">' + esc(song) + '</h4></div>'
+      +   '<span class="history-round-pill">' + ((round.players || []).length || 0) + ' jogador(es)</span>'
+      + '</div>'
+      + '<div class="history-player-list">' + players + '</div>'
+      + '</article>';
+  }).join('');
+
+  board.innerHTML = ''
+    + '<div class="history-stat-row">' + statCards + '</div>'
+    + '<div class="history-grid">'
+    +   '<section class="history-card">'
+    +     '<div class="history-card-head"><h3>Ranking da sala</h3><span>quem mais pontuou</span></div>'
+    +     '<div class="history-leader-list">' + leaderItems + '</div>'
+    +   '</section>'
+    +   '<section class="history-card">'
+    +     '<div class="history-card-head"><h3>Rodadas recentes</h3><span>placar por música</span></div>'
+    +     '<div class="history-round-list">' + roundCards + '</div>'
+    +   '</section>'
+    + '</div>'
+    + '<p class="history-footnote">Os números são atualizados conforme a sala recebe novos resultados. O histórico guarda até 20 rodadas enquanto a sala continuar aberta.</p>';
 }
+
+
 function onRoom() {
   if (!Net.joined) return;
   const currentHostId = Net.r?.hostId || null;
@@ -983,9 +1068,9 @@ function press(pi, l) {
     playKeyHit(l);
     P.last = { text: n.dur ? 'SEGURE ATÉ O FINAL' : ['PERFEITO', 'BOM', 'OK'][j], color: ['#38e3b0', '#ffc933', '#9a9ec7'][j], t0: tv };
     const x = P.cx + (l + 0.5 - P.laneCount / 2) * P.laneW, col = LANE_COL[P.instr][l];
-    for (let q = 0; q < 9; q++) {
-      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, v = 90 + Math.random() * 170;
-      G.fx.push({ x, y: P.yHit, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.45, c: col });
+    for (let q = 0; q < 16; q++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6, v = 120 + Math.random() * 210;
+      G.fx.push({ x, y: P.yHit - 8, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.52, c: col, s: 2 + Math.random() * 4 });
     }
     Net.emit('hit', { r: G.round, i: P.instr, l, sl: n.sl, t: +n.t.toFixed(3) });
     return;
@@ -1047,10 +1132,17 @@ function renderEnd() {
   $('#endSub').textContent = rows.length > 1
     ? (w.length > 1 ? 'Empate no topo com ' + top + ' pontos.' : w[0].r.n + ' (' + INSTR[w[0].r.i].label.toLowerCase() + ') fez a maior pontuação: ' + top + ' pontos.')
     : S.song.name;
+  // Exibe apenas o avatar local; dados dos demais jogadores não são sincronizados.
+  const endPortraits=['vana-perfil.png','chapola-perfil.png','lizz-perfil.png','tatsugiri-perfil.png','roberto-montanna-perfil.png','irisu-perfil.png','ratazana-perfil.png'];
+  let localAvatar=0;
+  try{localAvatar=Number(localStorage.getItem('jam-avatar-index')||0);}catch{}
+  const localPortrait=endPortraits[localAvatar];
   $('#endTable').innerHTML = '<thead><tr><th>Jogador</th><th>Instrumento</th><th>Pontos</th><th>Acertos</th><th>Sequência</th><th>Perfeitos</th><th>Bons</th><th>Ok</th><th>Cobertos</th><th>Erros</th></tr></thead><tbody>' +
     rows.map(x => {
       const s = x.st || {}, c = s.c || [0, 0, 0], tot = num(s.tot), hits = num(c[0]) + num(c[1]) + num(c[2]);
-      return '<tr><td>' + esc(x.r.n) + (x.st && x.st.fin ? '' : x.here ? ' …' : ' (saiu)') + '</td><td><i style="--c:' + ACC[x.r.i] + '"></i>' + INSTR[x.r.i].label + ' · ' + DIFFS[x.r.d].label + '</td><td>' + num(s.sc) + '</td><td>' +
+      const label=esc(x.r.n)+(x.st && x.st.fin ? '' : x.here ? ' …' : ' (saiu)');
+      const photo=(x.r.p===me && localPortrait) ? '<img class="jam-end-avatar" src="/assets/avatars/'+localPortrait+'" alt="">' : '';
+      return '<tr><td><span class="jam-end-player">'+photo+'<span>'+label+'</span></span></td><td><i style="--c:' + ACC[x.r.i] + '"></i>' + INSTR[x.r.i].label + ' · ' + DIFFS[x.r.d].label + '</td><td>' + num(s.sc) + '</td><td>' +
         (tot ? Math.round((hits + num(s.cv)) / tot * 100) : 0) + '%</td><td>' + num(s.mx) + '</td><td>' + num(c[0]) + '</td><td>' + num(c[1]) + '</td><td>' + num(c[2]) + '</td><td>' + num(s.cv) + '</td><td>' + num(s.ms) + '</td></tr>';
     }).join('') + '</tbody>';
 }
@@ -1065,7 +1157,7 @@ function layout() {
   const P = G.players[0], compact = H < 560;
   G.side = G.roster.length > 1 && W >= 700 ? 168 : 0;
   P.cx = G.side + (W - G.side) / 2;
-  P.hw = Math.max(120, Math.min(W - G.side - 14, 460));
+  P.hw = Math.max(140, Math.min(W - G.side - (W < 680 ? 16 : 56), W < 680 ? 540 : 760));
   P.laneW = P.hw / P.laneCount;
   P.yTop = compact ? 120 : 152;
   P.yHit = H - (compact ? 74 : 106);
@@ -1108,22 +1200,36 @@ function proj(P, u) {
   return { s, y };
 }
 function drawNote(g, P, lane, x, y, s, color, a) {
+  g.save();
   g.globalAlpha = a;
-  if (P.instr === 'bateria' && lane === 0) {            // pedal do bumbo: barra larga
-    const w = P.hw * s * 0.96, h = Math.max(4, P.laneW * s * 0.2);
-    rr(g, P.cx - w / 2 - 1.5, y - h / 2 - 1.5, w + 3, h + 3, h * 0.5, '#07070d');
-    rr(g, P.cx - w / 2, y - h / 2, w, h, h * 0.45, color);
-    rr(g, P.cx - w / 2 + h * 0.5, y - h * 0.32, w - h, h * 0.2, h * 0.1, 'rgba(255,255,255,.55)');
-  } else {                                              // gema: aro preto, cor, anel branco, miolo colorido
-    const r = P.laneW * s * 0.41, ry = r * 0.78;
-    const ov = (rx, rY, c, oy) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y + (oy || 0), rx, rY, 0, 0, 6.2832); g.fill(); };
-    ov(r * 1.14, ry * 1.18, '#07070d');
-    ov(r, ry, color);
-    ov(r * 0.62, ry * 0.62, '#ffffff');
-    ov(r * 0.38, ry * 0.38, color);
-    ov(r * 0.6, ry * 0.17, 'rgba(255,255,255,.4)', -ry * 0.62);
-  }
-  g.globalAlpha = 1;
+  const noteW = Math.max(22, Math.min(P.laneW * s * 0.9, P.laneW * 0.84));
+  const noteH = Math.max(12, Math.min(P.laneW * s * 0.42, P.laneW * 0.48));
+  const radius = Math.min(14, noteH * 0.34);
+  const bx = x - noteW / 2;
+  const by = y - noteH / 2;
+  // brilho externo
+  g.shadowColor = color;
+  g.shadowBlur = 10 + noteH * 0.22;
+  rr(g, bx - 1, by - 1, noteW + 2, noteH + 2, radius + 1, 'rgba(14,13,37,.77)');
+  // contorno colorido
+  const edge = g.createLinearGradient(bx, by, bx + noteW, by + noteH);
+  edge.addColorStop(0, 'rgba(255,255,255,.95)');
+  edge.addColorStop(0.18, color);
+  edge.addColorStop(1, rgba(color, 0.74));
+  rr(g, bx, by, noteW, noteH, radius, edge);
+  g.shadowBlur = 0;
+  // face interna
+  const face = g.createLinearGradient(0, by + 2, 0, by + noteH - 2);
+  face.addColorStop(0, rgba(color, 0.96));
+  face.addColorStop(0.46, rgba(color, 0.72));
+  face.addColorStop(1, 'rgba(20,22,46,.96)');
+  rr(g, bx + 3, by + 3, noteW - 6, noteH - 6, Math.max(4, radius - 2), face);
+  // brilho superior
+  rr(g, bx + 8, by + 5, Math.max(8, noteW - 16), Math.max(2, noteH * 0.12), Math.max(2, noteH * 0.06), 'rgba(255,255,255,.55)');
+  // Reflexo fino em vez de alvo circular; mantém contraste da nota.
+  rr(g, bx + noteW * .22, by + noteH * .58, noteW * .56,
+    Math.max(1.5, noteH * .055), 2, 'rgba(255,255,255,.23)');
+  g.restore();
 }
 
 function trap(g, cx, hw, yT, yH, a, b) {   // faixa do braço entre as posições a e b (em unidades de pista)
@@ -1140,13 +1246,25 @@ function drawPlayer(g, P, tv) {
   const gr = g.createLinearGradient(0, yT, 0, yH);
   gr.addColorStop(0, 'rgba(10,10,20,0)'); gr.addColorStop(0.35, 'rgba(14,14,26,.8)'); gr.addColorStop(1, 'rgba(20,20,36,.97)');
   g.fillStyle = gr; g.fill();
+  // Painéis cromáticos contínuos fazem as pistas parecerem um palco arcade.
+  for (let l = 0; l < L; l++) {
+    trap(g, cx, hw, yT, yH, x0 + l * laneW + 2, x0 + (l+1) * laneW - 2);
+    const tint = g.createLinearGradient(0,yT,0,yH);
+    tint.addColorStop(0,rgba(col[l],.025));
+    tint.addColorStop(.55,rgba(col[l],.09));
+    tint.addColorStop(1,rgba(col[l],.24));
+    g.fillStyle=tint;g.fill();
+  }
   if (P.flash !== undefined && tv - P.flash < 0.3 && tv >= P.flash) { trap(g, cx, hw, yT, yH, x0, -x0); g.fillStyle = 'rgba(255,40,60,' + (0.28 * (1 - (tv - P.flash) / 0.3)) + ')'; g.fill(); }
   for (let l = 0; l < L; l += 2) { trap(g, cx, hw, yT, yH, x0 + l * laneW, x0 + (l + 1) * laneW * 1); g.fillStyle = 'rgba(255,255,255,.035)'; g.fill(); }
   for (let l = 0; l < L; l++) {                         // brilho da pista apertada
     if (!P.down[l]) continue;
     const gl = g.createLinearGradient(0, yH, 0, yT);
-    gl.addColorStop(0, rgba(col[l], 0.4)); gl.addColorStop(1, rgba(col[l], 0));
+    gl.addColorStop(0, rgba(col[l], 0.72)); gl.addColorStop(.45, rgba(col[l], 0.25)); gl.addColorStop(1, rgba(col[l], 0));
     trap(g, cx, hw, yT, yH, x0 + l * laneW, x0 + (l + 1) * laneW); g.fillStyle = gl; g.fill();
+    const beam = g.createRadialGradient(cx + (l + 0.5 - L / 2) * laneW, yH - 10, 3, cx + (l + 0.5 - L / 2) * laneW, yH - 10, laneW * 0.8);
+    beam.addColorStop(0, rgba(col[l], 0.50)); beam.addColorStop(0.45, rgba(col[l], 0.18)); beam.addColorStop(1, rgba(col[l], 0));
+    g.fillStyle = beam; g.fillRect(cx + (l - L/2) * laneW - laneW * .2, yH - 120, laneW * 1.4, 150);
   }
   g.lineWidth = 1; g.strokeStyle = 'rgba(235,238,255,.3)';
   for (let k = 1; k < L; k++) { g.beginPath(); g.moveTo(cx + (k - L / 2) * laneW * S_MIN, yT); g.lineTo(cx + (k - L / 2) * laneW, yH); g.stroke(); }
@@ -1179,13 +1297,62 @@ function drawPlayer(g, P, tv) {
       const p1 = proj(P, startU), p2 = proj(P, endU);
       const xl = (n.lane + .5 - L / 2) * laneW;
       const x1 = cx + xl * p1.s, x2 = cx + xl * p2.s;
-      const w1 = laneW * p1.s * .15, w2 = laneW * p2.s * .15;
-      g.save(); g.globalAlpha = n.st === 3 || n.st === 6 ? 0.5 : 0.92;
-      g.fillStyle = col[n.lane];
-      g.beginPath(); g.moveTo(x1-w1,p1.y); g.lineTo(x1+w1,p1.y);
-      g.lineTo(x2+w2,p2.y); g.lineTo(x2-w2,p2.y); g.closePath(); g.fill();
-      g.fillStyle = '#fff';
-      g.beginPath(); g.arc(x2,p2.y,Math.max(3,w2*.8),0,Math.PI*2); g.fill();
+      const w1 = Math.max(8, laneW * p1.s * .24), w2 = Math.max(5, laneW * p2.s * .19);
+      const innerW1 = Math.max(3, w1 * .44), innerW2 = Math.max(2, w2 * .42);
+      const tailPath = (aw1, aw2) => {
+        g.beginPath();
+        g.moveTo(x1-aw1,p1.y); g.lineTo(x1+aw1,p1.y);
+        g.lineTo(x2+aw2,p2.y); g.lineTo(x2-aw2,p2.y);
+        g.closePath();
+      };
+      g.save();
+      g.globalAlpha = n.st === 3 || n.st === 6 ? 0.42 : 0.92;
+      g.shadowColor = col[n.lane];
+      g.shadowBlur = 10;
+      const glow = g.createLinearGradient(x1, p1.y, x2, p2.y);
+      glow.addColorStop(0, rgba(col[n.lane], .14));
+      glow.addColorStop(.45, rgba(col[n.lane], .24));
+      glow.addColorStop(.82, rgba(col[n.lane], .14));
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = glow;
+      tailPath(w1, w2);
+      g.fill();
+      g.shadowBlur = 0;
+      const core = g.createLinearGradient(x1, p1.y, x2, p2.y);
+      core.addColorStop(0, rgba(col[n.lane], .70));
+      core.addColorStop(.55, rgba(col[n.lane], .50));
+      core.addColorStop(.86, rgba(col[n.lane], .16));
+      core.addColorStop(1, 'rgba(20,22,46,0)');
+      g.fillStyle = core;
+      tailPath(innerW1, innerW2);
+      g.fill();
+      const shine = g.createLinearGradient(x1, p1.y, x2, p2.y);
+      shine.addColorStop(0, 'rgba(255,255,255,.20)');
+      shine.addColorStop(.52, 'rgba(255,255,255,.08)');
+      shine.addColorStop(.86, 'rgba(255,255,255,.03)');
+      shine.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = shine;
+      tailPath(innerW1 * .26, innerW2 * .18);
+      g.fill();
+      const capW = Math.max(14, w2 * 3.1);
+      const capH = Math.max(10, w2 * 1.5);
+      const capX = x2 - capW / 2;
+      const capY = p2.y - capH / 2;
+      g.shadowColor = col[n.lane];
+      g.shadowBlur = 9;
+      rr(g, capX - 1, capY - 1, capW + 2, capH + 2, Math.min(12, capH * .42), 'rgba(14,13,37,.58)');
+      const capEdge = g.createLinearGradient(capX, capY, capX + capW, capY + capH);
+      capEdge.addColorStop(0, 'rgba(255,255,255,.86)');
+      capEdge.addColorStop(.22, col[n.lane]);
+      capEdge.addColorStop(1, rgba(col[n.lane], .64));
+      rr(g, capX, capY, capW, capH, Math.min(12, capH * .42), capEdge);
+      g.shadowBlur = 0;
+      const capFace = g.createLinearGradient(0, capY + 1, 0, capY + capH - 1);
+      capFace.addColorStop(0, rgba(col[n.lane], .88));
+      capFace.addColorStop(.45, rgba(col[n.lane], .62));
+      capFace.addColorStop(1, 'rgba(20,22,46,.90)');
+      rr(g, capX + 3, capY + 3, capW - 6, capH - 6, Math.min(10, capH * .34), capFace);
+      rr(g, capX + 8, capY + 4, Math.max(8, capW - 16), Math.max(2, capH * .11), 3, 'rgba(255,255,255,.34)');
       g.restore();
     }
   }
@@ -1202,30 +1369,60 @@ function drawPlayer(g, P, tv) {
     if (u < 0) a *= Math.max(0, 1 + u / 0.1);
     drawNote(g, P, n.lane, x, pj.y, pj.s, n.st === 2 ? '#6f73a3' : col[n.lane], a);
   }
-  // linha de acerto
-  g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.4)';
-  g.beginPath(); g.moveTo(cx - hw / 2 - 6, yH); g.lineTo(cx + hw / 2 + 6, yH); g.stroke();
-  // botões (estilo "traste")
-  const R = Math.min(laneW * 0.42, 31);
-  for (let l = 0; l < L; l++) {
-    const x = cx + (l + 0.5 - L / 2) * laneW, dn = P.down[l], c = col[l];
-    const age = tv - P.hitFx[l];
-    if (age >= 0 && age < 0.2) {                        // clarão do acerto
-      const k = age / 0.2, fr = R * (1.6 + k * 1.6), fl = g.createRadialGradient(x, yH, 0, x, yH, fr);
-      fl.addColorStop(0, 'rgba(255,255,255,' + (0.95 * (1 - k)) + ')'); fl.addColorStop(0.4, rgba(c, 0.7 * (1 - k))); fl.addColorStop(1, rgba(c, 0));
-      g.fillStyle = fl; g.beginPath(); g.arc(x, yH, fr, 0, 6.2832); g.fill();
+  // Linha de acerto com halo discreto e contraste alto.
+  g.save();g.shadowColor='#ac7cff';g.shadowBlur=14;
+  g.lineWidth=4;g.strokeStyle='#ddc6ff';
+  g.beginPath();g.moveTo(cx-hw/2-6,yH);g.lineTo(cx+hw/2+6,yH);g.stroke();g.restore();
+  // Receptores Arcade 3: teclas largas, brilhantes e com feedback imediato.
+  const buttonW = Math.min(laneW * .88, W < 600 ? 94 : 136);
+  const buttonH = Math.min(W < 600 ? 42 : 54, Math.max(33, laneW * .49));
+  for(let l=0;l<L;l++){
+    const x=cx+(l+.5-L/2)*laneW, c=col[l], dn=!!P.down[l];
+    const age=tv-P.hitFx[l];
+    if(age>=0&&age<.30){
+      const t=age/.30, spread=buttonW*(.7+t*.45);
+      g.save();g.globalAlpha=1-t;g.strokeStyle=rgba(c,.98);g.lineWidth=4*(1-t)+1.2;
+      g.shadowColor=c;g.shadowBlur=34;
+      g.beginPath();if(g.roundRect)g.roundRect(x-spread/2,yH-buttonH*.74-t*17,spread,buttonH*(1+t*.4),13);else g.rect(x-spread/2,yH-buttonH*.74-t*17,spread,buttonH*(1+t*.4));g.stroke();g.restore();
     }
-    g.save(); g.translate(x, yH); g.scale(1, 0.7);
-    g.fillStyle = '#07070d'; g.beginPath(); g.arc(0, 0, R * 1.14, 0, 6.2832); g.fill();
-    g.lineWidth = R * 0.26; g.strokeStyle = dn ? '#ffffff' : c;
-    g.beginPath(); g.arc(0, 0, R * 0.86, 0, 6.2832); g.stroke();
-    g.fillStyle = dn ? c : '#1b1b2a'; g.beginPath(); g.arc(0, 0, R * 0.64, 0, 6.2832); g.fill();
-    if (dn) { g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(0, 0, R * 0.36, 0, 6.2832); g.fill(); }
-    g.restore();
-    g.fillStyle = dn ? '#07070d' : '#eeecf8';
-    g.font = '500 ' + Math.round(R * 0.62) + 'px ' + FM; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(P.keyset.labels[l], x, yH + 1);
-    if (P.instr === 'bateria') { g.fillStyle = '#9a9ec7'; g.font = '500 10px ' + FM; g.fillText(PAD_NAMES[l], x, yH + R + 16); }
+    g.save();
+    const y=yH-buttonH*.51+(dn?4:0), bx=x-buttonW/2;
+    g.shadowColor=dn?c:'rgba(0,0,0,.28)';g.shadowBlur=dn?23:5;
+    rr(g,bx+2,y+4,buttonW,buttonH,Math.min(15,buttonH*.32),'rgba(8,9,25,.48)');
+    const edge=g.createLinearGradient(bx,y,bx+buttonW,y+buttonH);
+    edge.addColorStop(0,'#fff6e8');edge.addColorStop(.28,c);edge.addColorStop(1,rgba(c,.72));
+    rr(g,bx,y,buttonW,buttonH,Math.min(15,buttonH*.32),edge);
+    g.shadowBlur=0;
+    const face=g.createLinearGradient(0,y+3,0,y+buttonH-4);
+    face.addColorStop(0,dn?rgba(c,.91):'#343052');
+    face.addColorStop(.55,dn?rgba(c,.72):'#1e1b38');
+    face.addColorStop(1,dn?'#332044':'#11132c');
+    rr(g,bx+4,y+4,buttonW-8,buttonH-10,Math.min(12,buttonH*.26),face);
+    rr(g,bx+10,y+7,Math.max(6,buttonW-20),Math.max(3,buttonH*.1),4,dn?'rgba(255,255,255,.65)':'rgba(255,255,255,.19)');
+    g.strokeStyle=dn?'rgba(255,255,255,.95)':rgba(c,.82);g.lineWidth=1.6;
+    g.beginPath();if(g.roundRect)g.roundRect(bx+4,y+4,buttonW-8,buttonH-10,Math.min(12,buttonH*.26));else g.rect(bx+4,y+4,buttonW-8,buttonH-10);g.stroke();
+    g.font='900 '+Math.min(24,Math.max(14,buttonH*.43))+'px '+FD;
+    g.textAlign='center';g.textBaseline='middle';g.fillStyle=dn?'#13142d':'#fff8ee';
+    g.shadowColor=dn?'#ffffff':c;g.shadowBlur=dn?18:6;
+    g.fillText(P.keyset.labels[l],x,y+buttonH*.53);g.restore();
+    // Brilho de acerto com feixes retos, sem círculo transparente sobre a tecla.
+    if(age>=0 && age<.20){
+      const fade=1-age/.20;
+      g.save(); g.globalAlpha=fade*.9;
+      g.shadowColor=c;g.shadowBlur=17;
+      const light=g.createLinearGradient(0,yH-buttonH*1.28,0,yH-buttonH*.62);
+      light.addColorStop(0,rgba(c,0));light.addColorStop(1,rgba(c,.65));
+      rr(g,x-buttonW*.30,yH-buttonH*1.26,buttonW*.60,buttonH*.54,6,light);
+      g.strokeStyle=rgba(c,.95);g.lineWidth=2;
+      for(let k=0;k<3;k++){
+        const sx=x+(k-1)*buttonW*.2;
+        g.beginPath();g.moveTo(sx,yH-buttonH*.94);g.lineTo(sx,yH-buttonH*(1.22+fade*.22));g.stroke();
+      }
+      g.restore();
+    }
+    if(P.instr==='bateria'){
+      g.font='600 10px '+FM;g.fillStyle='#c7b7df';g.fillText(PAD_NAMES[l],x,yH+R+17);
+    }
   }
   if (G.mut[P.instr] && G.gains && G.gains[P.instr]) { g.fillStyle = '#ff5c7a'; g.font = '500 11px ' + FM; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SOM CORTADO', cx, yH - 118); }
   // julgamento
@@ -1237,21 +1434,26 @@ function drawPlayer(g, P, tv) {
       g.fillText(P.last.text, cx, yH - 86); g.globalAlpha = 1;
     }
   }
-  // placar e multiplicador
-  const mult = Math.min(4, 1 + Math.floor(P.combo / 10));
-  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.fillStyle = P.acc; g.font = '500 12px ' + FM;
-  g.fillText((Net.name + ' · ' + INSTR[P.instr].label + ' · ' + DIFFS[P.diff].label).toUpperCase(), cx, 78);
-  g.fillStyle = '#eeecf8'; g.font = '900 36px ' + FD;
-  g.fillText(String(P.score), cx, 112);
-  const sw = g.measureText(String(P.score)).width, bx = cx + sw / 2 + 26, by = 100, br = 17;
-  g.lineWidth = 4; g.strokeStyle = 'rgba(154,158,199,.3)'; g.beginPath(); g.arc(bx, by, br, 0, 6.2832); g.stroke();
-  const frac = mult >= 4 ? 1 : (P.combo % 10) / 10;
-  if (frac > 0) { g.strokeStyle = '#ffe033'; g.beginPath(); g.arc(bx, by, br, -Math.PI / 2, -Math.PI / 2 + 6.2832 * frac); g.stroke(); }
-  g.fillStyle = '#eeecf8'; g.font = '800 15px ' + FD; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('×' + mult, bx, by + 1);
-  g.textBaseline = 'alphabetic'; g.fillStyle = '#9a9ec7'; g.font = '500 12px ' + FM;
-  g.fillText('SEQUÊNCIA ' + P.combo, cx, 134);
+  // Score de palco: painel compacto e separado da área de leitura das notas.
+  const mult=Math.min(4,1+Math.floor(P.combo/10));
+  const cardW=Math.min(W-G.side-16,Math.max(205,Math.min(338,hw*.8)));
+  const cardX=cx-cardW/2,cardY=55,cardH=93;
+  g.save();
+  const card=g.createLinearGradient(cardX,cardY,cardX+cardW,cardY+cardH);
+  card.addColorStop(0,'rgba(50,37,91,.95)');card.addColorStop(1,'rgba(19,19,48,.94)');
+  rr(g,cardX+4,cardY+5,cardW,cardH,10,'rgba(3,3,16,.55)');
+  rr(g,cardX,cardY,cardW,cardH,10,card);
+  g.strokeStyle='rgba(183,137,250,.68)';g.lineWidth=1.5;
+  g.beginPath();if(g.roundRect)g.roundRect(cardX,cardY,cardW,cardH,10);else g.rect(cardX,cardY,cardW,cardH);g.stroke();
+  const head=clip(g,(Net.name+' · '+INSTR[P.instr].label+' · '+DIFFS[P.diff].label).toUpperCase(),cardW-30);
+  g.textAlign='center';g.textBaseline='middle';
+  g.font='600 10px '+FM;g.fillStyle='#d3bdf9';g.fillText(head,cx,cardY+17);
+  g.font='900 '+(W<500?29:35)+'px '+FD;g.fillStyle='#fff6eb';
+  g.shadowColor='rgba(209,142,255,.45)';g.shadowBlur=9;g.fillText(String(P.score),cx,cardY+52);g.shadowBlur=0;
+  g.font='700 11px '+FM;g.fillStyle='#ffd36d';
+  g.fillText('COMBO '+P.combo+'    •    ×'+mult,cx,cardY+79);
+  g.restore();
+
 }
 
 function drawFx(g, dt) {
@@ -1260,17 +1462,45 @@ function drawFx(g, dt) {
     const f = fx[i]; f.t += dt;
     if (f.t >= f.life) { fx.splice(i, 1); continue; }
     f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 420 * dt;
-    g.globalAlpha = 1 - f.t / f.life; g.fillStyle = f.c;
-    g.beginPath(); g.arc(f.x, f.y, 3, 0, 6.2832); g.fill();
+    const alpha = 1 - f.t / f.life, size = f.s || 3;
+    g.save();
+    g.globalAlpha = alpha;
+    g.fillStyle = f.c;
+    g.shadowColor = f.c;
+    g.shadowBlur = 16;
+    g.fillRect(f.x - size/2, f.y - size/2, size, size);
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.fillRect(f.x - size/4, f.y - size/4, Math.max(1.5,size/2), Math.max(1.5,size/2));
+    g.restore();
   }
   g.globalAlpha = 1;
 }
 function draw(tv, dt) {
   const g = g2;
   g.clearRect(0, 0, W, H);
-  const bg = g.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#0b0c1d'); bg.addColorStop(1, '#15173a');
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0b0f2b'); bg.addColorStop(.55, '#171331'); bg.addColorStop(1, '#2b1744');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // Decoração vetorial leve: palco noturno discreto fora das pistas.
+  g.save();
+  g.fillStyle='rgba(255,255,255,.045)';
+  for(let i=0;i<22;i++){
+    const sx=((i*247+71)%997)/997*W, sy=((i*139+37)%431)/431*H*.6;
+    g.fillRect(sx,sy,i%5===0?3:1.5,i%5===0?3:1.5);
+  }
+  const pulse=.5+.5*Math.sin(tv*1.5);
+  const glow=g.createRadialGradient(W*.5,H*.76,0,W*.5,H*.76,W*.52);
+  glow.addColorStop(0,'rgba(130,58,205,'+(.08+pulse*.04)+')');glow.addColorStop(1,'rgba(130,58,205,0)');
+  g.fillStyle=glow;g.fillRect(0,0,W,H);
+  g.restore();
+  // Ambiente de ensaio minimalista, sem imagem pesada ou transparência sobre notas.
+  g.save();
+  const ambience = g.createRadialGradient(W*.52,H*.52,5,W*.52,H*.52,Math.max(W,H)*.67);
+  ambience.addColorStop(0,'rgba(151,76,224,.12)'); ambience.addColorStop(.6,'rgba(44,105,197,.06)'); ambience.addColorStop(1,'rgba(4,6,23,0)');
+  g.fillStyle=ambience;g.fillRect(0,0,W,H);
+  g.strokeStyle='rgba(183,122,236,.07)'; g.lineWidth=1;
+  for(let i=0;i<8;i++){const x=(i+.5)*W/8;g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}
+  g.restore();
   drawRemote(g, tv);
   G.players.forEach(P => drawPlayer(g, P, tv));
   drawFx(g, dt);

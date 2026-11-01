@@ -30,7 +30,7 @@ const server = http.createServer(async (req, res) => {
     '/ai-worker.js', '/ai-worker-gpu.js'
   ]);
   const isStatic = legacyScripts.has(pathname) ||
-    ['/css/', '/js/', '/vendor/', '/models/'].some(prefix => pathname.startsWith(prefix));
+    ['/css/', '/js/', '/vendor/', '/models/', '/assets/'].some(prefix => pathname.startsWith(prefix));
 
   if (isStatic) {
     let decoded;
@@ -46,7 +46,13 @@ const server = http.createServer(async (req, res) => {
       '.mjs': 'text/javascript; charset=utf-8',
       '.wasm': 'application/wasm',
       '.json': 'application/json; charset=utf-8',
-      '.bin': 'application/octet-stream'
+      '.bin': 'application/octet-stream',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon'
     }[ext];
     if (!target.startsWith(publicRoot + path.sep) || !mime ||
       !fs.existsSync(target) || !fs.statSync(target).isFile()) {

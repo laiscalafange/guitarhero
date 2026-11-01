@@ -1,0 +1,797 @@
+/* JAM NA GARAGEM — ROCK AFTER DARK / visual V3
+   Apenas apresentação. Mantém IDs, handlers, regras multiplayer e importadores. */
+:root {
+   --jam-bg: #09091b;
+   --jam-purple: #7e44dc;
+   --jam-lilac: #bd9bff;
+   --jam-cobalt: #286edc;
+   --jam-cyan: #39c9e3;
+   --jam-yellow: #ffd052;
+   --jam-pink: #de568f;
+   --jam-text: #f5f0ff
+}
+
+body.jam-redesign {
+   background: radial-gradient(ellipse at 50% -30%, #29204c 0%, transparent 55%), linear-gradient(160deg, #08091b, #111029 65%, #0a0b1a);
+   color: var(--jam-text);
+   font-family: 'Familjen Grotesk', system-ui, sans-serif
+}
+
+.jam-redesign .wrap {
+   max-width: 1580px;
+   padding-left: clamp(10px, 2vw, 26px);
+   padding-right: clamp(10px, 2vw, 26px)
+}
+
+/* O cenário tem fallback gráfico; aparece mesmo se o SVG não carregar. */
+body.jam-redesign .jam-home {
+   position: relative;
+   width: 100%;
+   min-height: min(850px, 95svh);
+   isolation: isolate;
+   overflow: hidden;
+   display: flex;
+   justify-content: flex-end;
+   align-items: center;
+   padding: clamp(22px, 5vw, 75px);
+   background: linear-gradient(0deg, #08091c77, #09091a12 45%, #0b0d2b22), url('/assets/garage-night.svg?v=3') center center/cover no-repeat, linear-gradient(155deg, #100d2b 10%, #2b2359 55%, #60427c 75%, #b06e65);
+   border: 1px solid #4d397d;
+   border-radius: 10px;
+   box-shadow: 0 22px 80px #03040f88
+}
+
+body.jam-redesign .jam-home::before {
+   content: '';
+   position: absolute;
+   inset: 0;
+   pointer-events: none;
+   z-index: -1;
+   background: linear-gradient(90deg, transparent 0 42%, #0a091a44 60%, #08081bbf 100%)
+}
+
+body.jam-redesign .jam-home::after {
+   display: block;
+   content: '';
+   position: absolute;
+   bottom: 0;
+   left: 0;
+   right: 0;
+   height: 7px;
+   background: linear-gradient(90deg, #ed588b 0 18%, #37a3e9 18% 40%, #ffcf55 40% 61%, #9e6aef 61% 83%, #51d2c7 83%);
+   transform: none;
+   z-index: 1
+}
+
+body.jam-redesign .jam-hero-content {
+   align-self: auto;
+   position: relative;
+   margin: 0;
+   width: min(100%, 520px);
+   max-width: 520px;
+   display: flex;
+   flex-direction: column;
+   justify-content: center;
+   align-items: center;
+   gap: 22px;
+   background: linear-gradient(145deg, #121127ef, #17122de6);
+   border: 1px solid #7e65a3;
+   border-left: 5px solid #bc8ff3;
+   border-radius: 6px;
+   padding: clamp(25px, 3.2vw, 54px) clamp(18px, 2.6vw, 40px);
+   text-align: center;
+   box-shadow: 13px 13px 0 #080719a8, 0 20px 56px #02020a77;
+   backdrop-filter: blur(6px)
+}
+
+body.jam-redesign .jam-hero-content::before {
+   content: '✦';
+   position: absolute;
+   top: -23px;
+   left: -24px;
+   font-size: 37px;
+   color: #ffd356;
+   text-shadow: 3px 4px #151122;
+   transform: rotate(-22deg)
+}
+
+body.jam-redesign .jam-hero-content h1 {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: clamp(73px, 7.5vw, 126px);
+   line-height: .81;
+   font-weight: 900;
+   letter-spacing: -.045em;
+   color: #fffaf2;
+   margin: 4px 0 5px;
+   transform: rotate(-3deg);
+   text-transform: uppercase;
+   text-shadow: 4px 4px 0 #21163d, 8px 8px 0 #7440a3;
+   filter: none
+}
+
+body.jam-redesign .jam-hero-content h1 em {
+   font-style: italic;
+   display: block;
+   color: #b688ff;
+   letter-spacing: -.04em;
+   text-shadow: 4px 5px 0 #251337, 8px 9px 0 #552e8d
+}
+
+body.jam-redesign .jam-kicker {
+   color: #ffdc7d;
+   font: 700 12px 'Space Mono', monospace;
+   letter-spacing: .16em
+}
+
+body.jam-redesign .jam-hero-content p {
+   font-size: 17px;
+   line-height: 1.5;
+   color: #d5cfe6;
+   max-width: 32ch;
+   margin: 0
+}
+
+body.jam-redesign .jam-primary,
+body.jam-redesign .go,
+body.jam-redesign .btn.solid {
+   background: #ffd052 !important;
+   color: #121022 !important;
+   border: 2px solid #fff0a5 !important;
+   border-bottom: 5px solid #dba62e !important;
+   border-radius: 5px !important;
+   font-family: 'Barlow Condensed', Impact, sans-serif !important;
+   font-weight: 900 !important;
+   letter-spacing: .045em;
+   box-shadow: 4px 5px 0 #080716 !important;
+   transition: transform .15s, filter .15s !important
+}
+
+body.jam-redesign .jam-primary:hover,
+body.jam-redesign .go:hover,
+body.jam-redesign .btn.solid:hover {
+   transform: translateY(-2px);
+   filter: brightness(1.07)
+}
+
+body.jam-redesign .jam-start {
+   font-size: clamp(30px, 3vw, 39px) !important;
+   padding: 11px 55px !important;
+   min-width: 250px
+}
+
+body.jam-redesign .jam-credits {
+   color: #e1d7f7;
+   opacity: .8
+}
+
+/* Navegação reimaginada como barra de amplificador / pôster de show */
+body.jam-redesign .jam-nav {
+   position: sticky;
+   top: 0;
+   z-index: 10;
+   background: linear-gradient(180deg, #17132e, #0e0e24);
+   border: 1px solid #5b4586;
+   border-bottom: 3px solid #9867de;
+   border-radius: 6px;
+   padding: 14px 22px;
+   box-shadow: 0 8px 35px #05050eaa;
+   gap: 18px
+}
+
+body.jam-redesign .jam-brand {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: clamp(23px, 2.4vw, 34px);
+   font-weight: 900;
+   font-style: italic;
+   line-height: .9;
+   letter-spacing: -.035em;
+   color: #faf6ff;
+   text-shadow: 3px 3px #4f2a78
+}
+
+body.jam-redesign .jam-brand b {
+   color: #ffce58
+}
+
+body.jam-redesign .jam-nav nav {
+   padding: 3px;
+   background: #0c0c20;
+   border: 1px solid #413563;
+   border-radius: 5px
+}
+
+body.jam-redesign .jam-nav nav button {
+   background: transparent;
+   border: 0;
+   border-radius: 3px;
+   font-family: 'Barlow Condensed', sans-serif;
+   font-size: 20px;
+   font-weight: 800;
+   padding: 10px clamp(14px, 2vw, 30px);
+   letter-spacing: .04em;
+   color: #cbc0e5
+}
+
+body.jam-redesign .jam-nav nav button.active {
+   background: #8752d9;
+   color: white;
+   box-shadow: inset 0 -3px #6030af
+}
+
+body.jam-redesign .jam-nav-tools button {
+   border-radius: 4px;
+   min-width: 50px;
+   background: #211b3c;
+   border: 1px solid #71559d;
+   color: #ece0ff
+}
+
+/* Todos os painéis recebem a mesma linguagem: moldura roxa discreta + fundo indie-rock. */
+body.jam-redesign .jam-view>.panel,
+body.jam-redesign .jam-view>.library,
+body.jam-redesign .jam-view>.preparation,
+body.jam-redesign .jam-view>#backgroundPreparation {
+   position: relative;
+   background: linear-gradient(160deg, #201a3e 0%, #13132e 75%);
+   border: 1px solid #635082;
+   border-top: 3px solid #8964cc;
+   border-radius: 6px;
+   padding: clamp(18px, 2.2vw, 33px);
+   box-shadow: 8px 9px 0 #05061540, 0 15px 40px #04051844
+}
+
+body.jam-redesign .jam-view .ph {
+   border: 0;
+   margin: 0 0 15px;
+   padding: 0 0 16px;
+   position: relative
+}
+
+body.jam-redesign .jam-view .ph:after {
+   content: '';
+   position: absolute;
+   bottom: 0;
+   left: 0;
+   width: 95px;
+   height: 4px;
+   background: linear-gradient(90deg, #ffcf53 0 32%, #d55cbe 32% 66%, #4ab8e8 66%)
+}
+
+body.jam-redesign .jam-view .ph h2 {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: clamp(38px, 4vw, 55px);
+   line-height: 1;
+   font-weight: 900;
+   font-style: italic;
+   letter-spacing: -.01em;
+   text-transform: uppercase;
+   color: #faf7ff
+}
+
+body.jam-redesign .jam-view h3,
+body.jam-redesign .jam-view h4 {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   letter-spacing: .015em;
+   text-transform: uppercase
+}
+
+body.jam-redesign .jam-view .jam-section-hint {
+   font-size: 15px;
+   line-height: 1.6;
+   color: #cbc2e0;
+   max-width: 75ch
+}
+
+/* Área de banda: área de instrumentos / ficha do músico. */
+body.jam-redesign #jam-band>.panel:first-child {
+   background: linear-gradient(100deg, #20193ad9, #14152dec), radial-gradient(circle at 90% 20%, #8252cf3a, transparent 55%);
+   min-height: 460px
+}
+
+body.jam-redesign #jam-band .strips {
+   max-width: 780px
+}
+
+body.jam-redesign #jam-band .strip,
+body.jam-redesign #jam-band .roster>li {
+   border: 1px solid #625080;
+   border-radius: 6px;
+   background: linear-gradient(110deg, #252144, #1a1834);
+   box-shadow: 3px 3px 0 #0a081d44
+}
+
+body.jam-redesign #jam-band .roster>li {
+   padding: 12px
+}
+
+body.jam-redesign #jam-band>.startbar {
+   border: 1px solid #7d5aaa;
+   border-top: 4px solid #ffd056;
+   background: linear-gradient(145deg, #282047, #17162d);
+   border-radius: 6px;
+   padding: 22px;
+   box-shadow: 6px 7px 0 #08071944
+}
+
+body.jam-redesign #jam-band .startbar .btn {
+   border: 1px solid #8c71b7
+}
+
+body.jam-redesign #jam-band .summary {
+   font: 500 13px/1.7 'Space Mono', monospace;
+   color: #ccbff2
+}
+
+/* Música: botões de abas legíveis sem barras horizontais feias. */
+body.jam-redesign #jam-music>.panel {
+   max-width: 1240px
+}
+
+body.jam-redesign #jam-music .tabs {
+   display: flex;
+   gap: 8px;
+   flex-wrap: wrap;
+   overflow: visible;
+   border: 0;
+   margin: 20px 0 24px
+}
+
+body.jam-redesign #jam-music .tab {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: 19px;
+   font-weight: 800;
+   padding: 10px 17px;
+   border: 1px solid #574673;
+   border-radius: 5px;
+   background: #191731;
+   color: #cfc6df;
+   white-space: normal
+}
+
+body.jam-redesign #jam-music .tab[aria-selected=true] {
+   background: #7b4bc0;
+   border: 1px solid #b48bff;
+   border-bottom: 3px solid #ffd050;
+   color: #fff
+}
+
+body.jam-redesign #jam-music .demos {
+   display: grid;
+   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+   gap: 13px
+}
+
+body.jam-redesign #jam-music .demo {
+   background: linear-gradient(160deg, #282044, #1b1737);
+   border: 1px solid #72599a;
+   border-left: 4px solid #b47eff;
+   border-radius: 6px;
+   padding: 15px;
+   transition: transform .16s, border-color .16s
+}
+
+body.jam-redesign #jam-music .demo:hover {
+   transform: translateY(-3px);
+   border-color: #ffcf55
+}
+
+body.jam-redesign #jam-music .music-list li,
+body.jam-redesign #jam-queue .music-list li {
+   background: #1b1938;
+   border: 1px solid #504474;
+   border-radius: 5px;
+   margin-bottom: 10px;
+   padding: 12px
+}
+
+body.jam-redesign .search-bar {
+   gap: 9px
+}
+
+body.jam-redesign .search-form label,
+body.jam-redesign #chartSearchForm label {
+   font-weight: 700
+}
+
+body.jam-redesign .drop {
+   border: 2px dashed #9268ca;
+   border-radius: 7px;
+   background: linear-gradient(140deg, #251d42, #17172f);
+   padding: 35px 25px
+}
+
+body.jam-redesign .drop:hover {
+   border-color: #ffcf53;
+   background: #2f2550
+}
+
+body.jam-redesign .drop strong {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: 29px
+}
+
+body.jam-redesign .music-meta {
+   color: #bdb3d5;
+   line-height: 1.55
+}
+
+/* Fila: playlist e análise em duas colunas quando couber, sem mexer nos IDs. */
+body.jam-redesign #jam-queue {
+   display: grid;
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+   gap: 16px;
+   align-content: start
+}
+
+body.jam-redesign #jam-queue .jam-queue-intro {
+   grid-column: 1/-1;
+   margin: 0;
+   background: linear-gradient(90deg, #29204c, #14132e);
+   border-left: 5px solid #ffd053;
+   border-radius: 5px;
+   padding: 18px 25px
+}
+
+body.jam-redesign #jam-queue .jam-queue-intro h2 {
+   font-size: 42px;
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-style: italic
+}
+
+body.jam-redesign #jam-queue>.library {
+   grid-column: 1/-1;
+   max-width: none;
+   width: 100%;
+   margin: 0
+}
+
+body.jam-redesign #jam-queue>#backgroundPreparation {
+   grid-column: 1/-1;
+   max-width: none;
+   width: 100%
+}
+
+body.jam-redesign #jam-queue .library-head {
+   gap: 15px;
+   align-items: center
+}
+
+body.jam-redesign #jam-queue .library h3 {
+   font-size: 38px
+}
+
+body.jam-redesign #jam-queue .library h4 {
+   font-size: 26px;
+   color: #f0d8ff
+}
+
+body.jam-redesign #jam-queue .music-empty {
+   background: #131229;
+   border: 1px dashed #655180;
+   border-radius: 5px;
+   padding: 25px
+}
+
+body.jam-redesign #jam-queue .library-head .btn {
+   background: #ffd052;
+   border: 1px solid #fff0a8;
+   color: #171128;
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: 18px
+}
+
+/* Formulários, indicadores e controles coerentes. */
+body.jam-redesign input:not([type=range]):not([type=checkbox]):not([type=radio]),
+body.jam-redesign select {
+   background: #0d1027;
+   border: 1px solid #78618f;
+   border-radius: 5px;
+   min-height: 45px;
+   color: #fff;
+   font-family: 'Familjen Grotesk', system-ui, sans-serif
+}
+
+body.jam-redesign input:focus,
+body.jam-redesign select:focus {
+   border-color: #ffd052;
+   outline: 2px solid #ffd05255
+}
+
+body.jam-redesign .btn {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: 18px;
+   font-weight: 800;
+   letter-spacing: .035em;
+   text-transform: uppercase;
+   border: 1px solid #68578a;
+   border-radius: 5px;
+   background: #2a2348;
+   color: #f0e8ff;
+   box-shadow: none;
+   transition: transform .15s, background .15s
+}
+
+body.jam-redesign .btn:hover {
+   transform: translateY(-2px);
+   background: #3c2c63
+}
+
+body.jam-redesign .status {
+   line-height: 1.45
+}
+
+body.jam-redesign progress {
+   accent-color: #ae82f8
+}
+
+body.jam-redesign input[type=range] {
+   accent-color: #ab79f7
+}
+
+/* Modal de entrada com detalhes de pôster de show. */
+body.jam-redesign .jam-entry {
+   max-width: 590px;
+   padding: 40px;
+   background: linear-gradient(155deg, #252041, #15142e);
+   border: 2px solid #9164c2;
+   box-shadow: 9px 9px 0 #342149, 0 30px 90px #0008
+}
+
+body.jam-redesign .jam-entry::before {
+   content: '★';
+   position: absolute;
+   left: -20px;
+   top: -20px;
+   font-size: 38px;
+   color: #ffd052;
+   transform: rotate(-15deg);
+   text-shadow: 3px 3px #211433
+}
+
+body.jam-redesign .jam-entry .ph h2 {
+   font-size: 57px;
+   font-style: italic
+}
+
+body.jam-redesign .jam-entry .roomrow {
+   gap: 12px
+}
+
+body.jam-redesign .jam-entry .roomrow label {
+   font-weight: 700;
+   color: #d7ccef
+}
+
+body.jam-redesign .jam-entry #btnJoin {
+   font-size: 24px
+}
+
+/* Configurações e avatar: mesmos componentes, visual novo; não fingir recursos inexistentes. */
+body.jam-redesign .jam-overlay {
+   background: #060511dc;
+   backdrop-filter: blur(8px)
+}
+
+body.jam-redesign .jam-dialog {
+   width: min(100%, 1050px);
+   border: 2px solid #9d70d5;
+   border-radius: 6px;
+   background: linear-gradient(155deg, #201a3e, #0f1026);
+   box-shadow: 9px 9px 0 #352052, 0 28px 90px #000d
+}
+
+body.jam-redesign .jam-dialog-head {
+   background: linear-gradient(90deg, #362350, #1d193a);
+   border-bottom: 2px solid #675085;
+   padding: 20px 28px
+}
+
+body.jam-redesign .jam-dialog-head h2 {
+   font-size: 47px;
+   font-style: italic
+}
+
+body.jam-redesign .jam-setting-tabs {
+   padding: 4px;
+   background: #111128;
+   border: 1px solid #493e70;
+   border-radius: 6px
+}
+
+body.jam-redesign .jam-setting-tabs button {
+   font-family: 'Barlow Condensed', sans-serif;
+   font-size: 19px;
+   border: 0;
+   border-radius: 4px;
+   flex: 1
+}
+
+body.jam-redesign .jam-setting-tabs button.active {
+   background: #8b58d9;
+   border-bottom: 3px solid #ffcd52
+}
+
+body.jam-redesign .jam-setting-content .field {
+   border: 1px solid #5b477b;
+   border-left: 3px solid #a379e7;
+   background: #221c3c;
+   border-radius: 5px;
+   padding: 17px
+}
+
+body.jam-redesign .jam-setting-content .field>label {
+   font-weight: 800
+}
+
+body.jam-redesign .jam-avatar-art {
+   position: relative;
+   min-height: 470px;
+   background: radial-gradient(ellipse at 50% 45%, #604194 0%, #291f52 48%, #14132d 100%);
+   border: 1px solid #9b70d5;
+   overflow: hidden
+}
+
+body.jam-redesign .jam-avatar-art:before {
+   content: '';
+   position: absolute;
+   inset: 10px;
+   background: repeating-linear-gradient(0deg, #ac7de40d 0 3px, transparent 3px 24px);
+   pointer-events: none
+}
+
+body.jam-redesign .jam-avatar-placeholder {
+   position: relative;
+   z-index: 1;
+   border: 2px dashed #916bb5;
+   background: linear-gradient(130deg, #322450aa, #1a1935bb);
+   border-radius: 5px
+}
+
+body.jam-redesign .jam-avatar-arrow {
+   position: relative;
+   z-index: 3;
+   border: 2px solid #b68ef1;
+   background: #2e2452;
+   font-size: 33px;
+   border-radius: 5px;
+   box-shadow: 3px 3px 0 #130e2b
+}
+
+body.jam-redesign .jam-avatar-profile h3 {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-style: italic;
+   font-size: 65px;
+   color: #f4e7ff
+}
+
+body.jam-redesign .jam-avatar-profile dt {
+   font-family: 'Space Mono', monospace;
+   font-size: 11px;
+   color: #b9a0e0
+}
+
+body.jam-redesign .jam-avatar-profile dd {
+   border-bottom: 1px solid #4d3c6c;
+   padding-bottom: 7px
+}
+
+body.jam-redesign #stage .hud,
+body.jam-redesign #stage .sheet-box {
+   font-family: 'Familjen Grotesk', sans-serif
+}
+
+@media(min-width:980px) {
+   body.jam-redesign .jam-home {
+      background-position: center
+   }
+
+   body.jam-redesign #jam-queue>.library {
+      max-width: none
+   }
+}
+
+@media(max-width:850px) {
+   body.jam-redesign .jam-home {
+      padding: 20px;
+      justify-content: center;
+      background-position: 35% center
+   }
+
+   body.jam-redesign .jam-home::before {
+      background: #07071966
+   }
+
+   body.jam-redesign .jam-hero-content {
+      max-width: 560px
+   }
+
+   body.jam-redesign #jam-queue {
+      display: block
+   }
+
+   body.jam-redesign #jam-queue>.library {
+      margin-bottom: 18px
+   }
+
+   body.jam-redesign .jam-nav nav button {
+      font-size: 17px;
+      padding: 10px 13px
+   }
+}
+
+@media(max-width:540px) {
+   body.jam-redesign .jam-home {
+      min-height: 94svh;
+      padding: 12px;
+      background-position: 30% center
+   }
+
+   body.jam-redesign .jam-hero-content {
+      padding: 28px 15px;
+      gap: 17px
+   }
+
+   body.jam-redesign .jam-hero-content h1 {
+      font-size: clamp(65px, 16vw, 100px)
+   }
+
+   body.jam-redesign .jam-start {
+      font-size: 30px !important;
+      min-width: 205px
+   }
+
+   body.jam-redesign .jam-nav {
+      padding: 12px 8px;
+      flex-wrap: wrap
+   }
+
+   body.jam-redesign .jam-nav nav {
+      width: 100%;
+      order: 3
+   }
+
+   body.jam-redesign .jam-nav nav button {
+      flex: 1;
+      padding: 10px 5px;
+      font-size: 15px
+   }
+
+   body.jam-redesign .jam-brand {
+      font-size: 23px
+   }
+
+   body.jam-redesign .jam-entry {
+      padding: 25px 15px
+   }
+
+   body.jam-redesign .jam-view>.panel {
+      padding: 17px
+   }
+
+   body.jam-redesign #jam-music .tabs {
+      gap: 5px
+   }
+
+   body.jam-redesign #jam-music .tab {
+      padding: 8px 10px;
+      font-size: 16px
+   }
+
+   body.jam-redesign .jam-dialog-head h2 {
+      font-size: 37px
+   }
+
+   body.jam-redesign .jam-dialog-body {
+      padding: 14px
+   }
+
+   body.jam-redesign .jam-avatar-art {
+      min-height: 270px
+   }
+}
+
+@media(prefers-reduced-motion:reduce) {
+   body.jam-redesign * {
+      animation: none !important;
+      transition: none !important
+   }
+}
