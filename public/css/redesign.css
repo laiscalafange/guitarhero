@@ -1,0 +1,706 @@
+/* Jam na Garagem — redesign progressivo, preservando os seletores funcionais. */
+:root {
+    --bg: #0d0d24;
+    --panel: #171632;
+    --panel2: #222044;
+    --line: #45406b;
+    --ink: #f2f0fc;
+    --muted: #aaa6cc;
+    --dim: #8580aa;
+    --guitar: #f25c83;
+    --bass: #458fff;
+    --drums: #ffd052;
+    --keys: #47d9bf
+}
+
+body.jam-redesign {
+    background: radial-gradient(circle at 85% 5%, #33205a 0, transparent 38%), #0d0d24;
+    color: var(--ink);
+    padding-top: 0
+}
+
+.jam-redesign .wrap {
+    max-width: 1360px
+}
+
+.jam-home {
+    min-height: min(850px, 100svh);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: grid;
+    align-items: center;
+    justify-items: center;
+    text-align: center;
+    background: linear-gradient(180deg, #10132f 2%, #202153 45%, #3c286a 76%, #17132e 100%);
+    border: 1px solid #4c417c;
+    border-radius: 0 0 16px 16px
+}
+
+.jam-home::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 24%;
+    background: repeating-linear-gradient(92deg, transparent 0 90px, #19132977 90px 93px), linear-gradient(0deg, #0e0d21dd, #292047aa);
+    z-index: -1;
+    transform: skewY(-2deg);
+    transform-origin: right
+}
+
+.jam-sky {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background: radial-gradient(circle at 10% 14%, #f8edff 0 1px, transparent 2px), radial-gradient(circle at 60% 21%, #fff 0 1px, transparent 2px), radial-gradient(circle at 83% 10%, #fff 0 2px, transparent 3px), radial-gradient(circle at 33% 30%, #fff 0 1px, transparent 2px)
+}
+
+.jam-moon {
+    position: absolute;
+    right: 18%;
+    top: 12%;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    box-shadow: -12px 6px 0 2px #ffe6a1;
+    transform: rotate(-20deg)
+}
+
+.jam-buildings {
+    position: absolute;
+    bottom: 15%;
+    left: 0;
+    right: 0;
+    height: 39%;
+    background: linear-gradient(90deg, #151334 0 9%, transparent 9% 13%, #19153a 13% 26%, transparent 26% 31%, #181435 31% 40%, transparent 40% 44%, #181434 44% 55%, transparent 55% 61%, #171432 61% 79%, transparent 79% 84%, #15122e 84%);
+    clip-path: polygon(0 25%, 10% 25%, 10% 48%, 15% 48%, 15% 12%, 26% 12%, 26% 39%, 32% 39%, 32% 0, 42% 0, 42% 36%, 55% 36%, 55% 14%, 66% 14%, 66% 42%, 80% 42%, 80% 23%, 90% 23%, 90% 52%, 100% 52%, 100% 100%, 0 100%)
+}
+
+.jam-garage {
+    position: absolute;
+    left: 3%;
+    bottom: 8%;
+    width: 38%;
+    height: 50%;
+    z-index: -1;
+    opacity: .85;
+    border: 5px solid #111128;
+    background: linear-gradient(90deg, #101124, #292044 15%, #14152d 65%, #0f1024)
+}
+
+.jam-roof {
+    position: absolute;
+    left: -4%;
+    right: -4%;
+    top: -8%;
+    height: 14%;
+    background: #100e27;
+    transform: skew(-8deg);
+    border-bottom: 4px solid #665088
+}
+
+.jam-door {
+    position: absolute;
+    inset: 15% 12% 0;
+    background: repeating-linear-gradient(0deg, #d48b45 0 3px, #745171 3px 22px);
+    box-shadow: inset 0 0 80px 24px #11112b, 0 0 35px #ffc46d33;
+    display: flex;
+    gap: 15px;
+    align-items: end;
+    justify-content: center;
+    font-size: clamp(24px, 5vw, 80px);
+    color: #111026
+}
+
+.jam-amp {
+    position: absolute;
+    right: -12%;
+    bottom: 0;
+    width: 20%;
+    height: 29%;
+    border: 6px solid #161326;
+    border-radius: 8px;
+    background: radial-gradient(circle, #111026 0 30%, #51426e 32% 36%, #1b1730 38%)
+}
+
+.jam-hero-content {
+    display: grid;
+    justify-items: center;
+    gap: 22px;
+    padding: 35px 20px;
+    max-width: 850px;
+    text-shadow: 0 4px 16px #08091c
+}
+
+.jam-hero-content h1 {
+    font: 900 clamp(58px, 10vw, 142px)/.85 var(--f-display);
+    letter-spacing: -.015em;
+    transform: rotate(-2deg);
+    filter: drop-shadow(5px 6px 0 #161032)
+}
+
+.jam-hero-content h1 em {
+    display: block;
+    color: #bc8afa;
+    font-style: normal
+}
+
+.jam-hero-content p {
+    font-size: clamp(15px, 2vw, 20px);
+    color: #ebe5f7;
+    max-width: 38ch
+}
+
+.jam-kicker {
+    font: 500 12px var(--f-mono);
+    letter-spacing: .17em;
+    color: #ffd45c
+}
+
+.jam-primary,
+.jam-redesign .go {
+    background: #ffd250 !important;
+    color: #121123 !important;
+    border: 2px solid #fff1ba !important;
+    box-shadow: 4px 5px 0 #101023;
+    font: 900 23px var(--f-display);
+    text-transform: uppercase;
+    padding: 13px 26px;
+    border-radius: 5px;
+    cursor: pointer
+}
+
+.jam-start {
+    font-size: clamp(25px, 3vw, 36px);
+    min-width: 200px
+}
+
+.jam-credits {
+    position: absolute;
+    bottom: 18px;
+    right: 20px;
+    background: none;
+    border: 0;
+    color: #d0c6e1;
+    text-decoration: underline;
+    font-size: 12px
+}
+
+.jam-credits-text {
+    position: absolute;
+    bottom: 50px;
+    right: 15px;
+    padding: 12px;
+    background: #101025ee;
+    max-width: 300px;
+    text-align: left;
+    font-size: 12px;
+    border: 1px solid #65518c
+}
+
+.jam-entry {
+    max-width: 520px;
+    margin: clamp(30px, 9vh, 90px) auto;
+    padding: 34px;
+    border: 1px solid #7655b5;
+    border-radius: 12px;
+    background: #191633;
+    box-shadow: 0 20px 70px #0009;
+    position: relative
+}
+
+.jam-entry .roomrow {
+    display: grid;
+    grid-template-columns: 1fr 1fr
+}
+
+.jam-entry .roomrow label {
+    grid-column: 1/-1
+}
+
+.jam-entry .roomrow input {
+    width: 100%;
+    min-width: 0
+}
+
+.jam-entry #btnJoin {
+    grid-column: 1/-1;
+    background: #ffd250;
+    color: #151027
+}
+
+.jam-entry .ph h2 {
+    font-size: 44px
+}
+
+.jam-close {
+    border: 0;
+    background: none;
+    color: #eee;
+    cursor: pointer;
+    font-size: 30px;
+    line-height: 1
+}
+
+.jam-entry>.jam-close {
+    position: absolute;
+    right: 12px;
+    top: 10px
+}
+
+.jam-redesign .board {
+    display: block;
+    padding: 0 0 80px
+}
+
+.jam-nav {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    margin: 0 0 24px;
+    background: #0c0c23ed;
+    border-bottom: 1px solid #554483;
+    backdrop-filter: blur(12px)
+}
+
+.jam-brand {
+    font: 900 24px/.9 var(--f-display);
+    white-space: nowrap;
+    transform: rotate(-1deg)
+}
+
+.jam-brand b {
+    color: #b88aff
+}
+
+.jam-nav nav,
+.jam-nav-tools {
+    display: flex;
+    gap: 6px;
+    align-items: center
+}
+
+.jam-nav button,
+.jam-setting-tabs button {
+    border: 1px solid #47406b;
+    background: #1b193a;
+    color: #dbd7f0;
+    border-radius: 7px;
+    padding: 9px 14px;
+    font: 700 14px var(--f-body)
+}
+
+.jam-nav button.active,
+.jam-setting-tabs button.active {
+    background: #7549c7;
+    color: #fff;
+    border-color: #b28bfd
+}
+
+.jam-nav-tools button {
+    font-size: 22px;
+    min-width: 42px
+}
+
+.jam-view {
+    min-height: 60vh
+}
+
+.jam-view[hidden] {
+    display: none !important
+}
+
+.jam-view>.panel,
+.jam-view>.library,
+.jam-view>.preparation,
+.jam-view>#backgroundPreparation {
+    background: #171631dd;
+    border: 1px solid #423866;
+    border-radius: 12px;
+    padding: 22px;
+    margin: 0 0 18px
+}
+
+.jam-view .ph h2,
+.jam-queue-intro h2 {
+    font-size: 36px
+}
+
+.jam-section-hint,
+.jam-queue-intro p {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 18px
+}
+
+#jam-band {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(270px, 360px);
+    gap: 18px;
+    align-content: start
+}
+
+#jam-band>.panel:first-child {
+    grid-column: 1;
+    grid-row: 1 / 3
+}
+
+#jam-band>.startbar {
+    grid-column: 2;
+    grid-row: 1;
+    background: #1b1939;
+    border: 1px solid #4c4073;
+    border-radius: 12px;
+    padding: 20px;
+    align-self: start
+}
+
+#jam-band .startbar .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr
+}
+
+#jam-band .startbar .row button {
+    font-size: 16px;
+    padding: 11px 8px
+}
+
+#jam-band .startbar .row .go {
+    grid-column: 1/-1
+}
+
+#jam-band>.jam-history {
+    grid-column: 1/-1
+}
+
+#jam-music>.panel {
+    max-width: 1100px;
+    margin: auto
+}
+
+#jam-music .tabs {
+    border-bottom-color: #5d4789;
+    scrollbar-width: thin
+}
+
+#jam-music .tab[aria-selected=true] {
+    border-color: #b58cff;
+    color: #f4eaff
+}
+
+#jam-music .demo,
+#jam-music .music-row,
+#jam-queue .music-row {
+    transition: border-color .2s, background .2s
+}
+
+#jam-music .demo:hover,
+#jam-music .music-row:hover,
+#jam-queue .music-row:hover {
+    border-color: #8a68c7;
+    background: #242044
+}
+
+.jam-queue-intro {
+    margin-bottom: 18px
+}
+
+#jam-queue>.library,
+#jam-queue>#backgroundPreparation {
+    max-width: 1100px;
+    margin: 0 auto 20px
+}
+
+.jam-redesign .btn.solid {
+    background: #9b75ed;
+    color: #130f27;
+    border-color: #b89aff
+}
+
+.jam-overlay {
+    position: fixed;
+    z-index: 20;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: #070714d9;
+    backdrop-filter: blur(7px)
+}
+
+.jam-dialog {
+    background: #17152f;
+    border: 2px solid #8660be;
+    box-shadow: 0 20px 70px #000c;
+    width: min(100%, 900px);
+    max-height: min(92dvh, 850px);
+    overflow: auto;
+    border-radius: 14px
+}
+
+.jam-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid #544578
+}
+
+.jam-dialog-head h2 {
+    font: 900 34px var(--f-display);
+    text-transform: uppercase
+}
+
+.jam-dialog-body {
+    padding: 20px
+}
+
+.jam-setting-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px
+}
+
+.jam-setting-content .panel {
+    display: block
+}
+
+.jam-setting-content .panel>.ph {
+    display: none
+}
+
+.jam-setting-content .settings {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px
+}
+
+.jam-setting-content .field {
+    background: #201d3f;
+    padding: 16px;
+    border-radius: 9px;
+    min-width: 0
+}
+
+.jam-setting-content .field[hidden] {
+    display: none !important
+}
+
+.jam-info {
+    background: #211c3e;
+    border-radius: 8px;
+    padding: 22px;
+    color: #ccc5e3
+}
+
+.jam-info h3 {
+    color: white;
+    margin-bottom: 10px
+}
+
+.jam-avatar-layout {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 1fr;
+    gap: 25px
+}
+
+.jam-avatar-art {
+    background: radial-gradient(circle at center, #422e73, #1b1739);
+    border: 1px solid #654892;
+    border-radius: 10px;
+    min-height: 370px;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 5px;
+    padding: 12px
+}
+
+.jam-avatar-arrow {
+    font-size: 30px;
+    border: 0;
+    background: #242043;
+    color: #d6c1ff;
+    border-radius: 8px;
+    padding: 10px
+}
+
+.jam-avatar-placeholder {
+    min-height: 320px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 35px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #f1e5ff;
+    border: 2px dashed #9b76c9;
+    border-radius: 10px;
+    background: linear-gradient(140deg, #39316c, #181732)
+}
+
+.jam-avatar-placeholder span {
+    font-size: 90px;
+    text-shadow: 0 0 20px #a775ff
+}
+
+.jam-avatar-placeholder small {
+    font: 500 11px var(--f-mono)
+}
+
+.jam-avatar-profile {
+    display: grid;
+    align-content: start;
+    gap: 12px
+}
+
+.jam-avatar-profile h3 {
+    font: 900 44px var(--f-display)
+}
+
+.jam-avatar-count {
+    color: #c1a2f6;
+    font: 500 12px var(--f-mono)
+}
+
+.jam-avatar-profile dl {
+    display: grid;
+    gap: 4px;
+    margin: 0 0 12px
+}
+
+.jam-avatar-profile dt {
+    color: #a5a0c6;
+    font: 500 11px var(--f-mono);
+    text-transform: uppercase;
+    margin-top: 10px
+}
+
+.jam-avatar-profile dd {
+    margin: 0;
+    font-size: 17px
+}
+
+.jam-info-note {
+    font-size: 12px;
+    color: #a5a0c6
+}
+
+@media(max-width:800px) {
+    #jam-band {
+        display: block
+    }
+
+    .jam-nav {
+        flex-wrap: wrap;
+        gap: 9px
+    }
+
+    .jam-nav nav {
+        order: 3;
+        width: 100%;
+        justify-content: space-between
+    }
+
+    .jam-nav nav button {
+        flex: 1
+    }
+
+    .jam-setting-content .settings {
+        grid-template-columns: 1fr
+    }
+
+    .jam-avatar-layout {
+        grid-template-columns: 1fr
+    }
+
+    .jam-avatar-art {
+        min-height: 280px
+    }
+
+    .jam-avatar-placeholder {
+        min-height: 240px
+    }
+
+    .jam-entry .roomrow {
+        grid-template-columns: 1fr
+    }
+
+    .jam-entry .roomrow>* {
+        grid-column: 1/-1
+    }
+
+    .jam-garage {
+        left: -15%;
+        width: 70%;
+        opacity: .5
+    }
+}
+
+@media(max-width:480px) {
+    .jam-nav {
+        padding: 12px 8px
+    }
+
+    .jam-nav button {
+        padding: 8px
+    }
+
+    .jam-redesign .jam-view>.panel,
+    .jam-view>.library {
+        padding: 14px
+    }
+
+    .jam-home {
+        min-height: 90svh
+    }
+
+    .jam-hero-content {
+        gap: 15px
+    }
+
+    .jam-setting-tabs button {
+        font-size: 12px;
+        padding: 7px 9px
+    }
+}
+
+@media(prefers-reduced-motion:reduce) {
+    .jam-redesign * {
+        animation: none !important;
+        transition: none !important
+    }
+}
+
+/* FONTES */
+
+:root {
+    --fonte-rock: "Barlow Condensed", sans-serif;
+    --fonte-pixel: "Press Start 2P", monospace;
+    --fonte-texto: "Space Grotesk", sans-serif;
+}
+
+body {
+    font-family: var(--fonte-texto);
+}
+
+/* Exemplos de classes que usaremos */
+.fonte-rock {
+    font-family: var(--fonte-rock);
+    font-weight: 900;
+}
+
+.fonte-pixel {
+    font-family: var(--fonte-pixel);
+}
+
+.fonte-texto {
+    font-family: var(--fonte-texto);
+}

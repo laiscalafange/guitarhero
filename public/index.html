@@ -1,11 +1,14 @@
 <!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Jam na Garagem Online</title>
-<link rel="stylesheet" href="/css/styles.css?v=1.4.0">
+<link rel="stylesheet" href="/css/styles.css?v=1.5.0">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Space+Mono:wght@400;700&family=Big+Shoulders+Display:wght@700;800;900&family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<link rel="stylesheet" href="/css/redesign.css?v=1.5.0">
+<link rel="stylesheet" href="/css/jam-theme.css?v=5.0.0">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head><body>
 
 <main id="setup" class="wrap">
@@ -183,7 +186,7 @@
       <div class="ph"><h2 id="historyTitle">Pontuações das rodadas anteriores</h2></div>
       <p class="hint">Histórico compartilhado na sala (últimas 20 rodadas, enquanto ela estiver aberta).</p>
       <p class="music-empty" id="historyEmpty">Nenhuma rodada jogada ainda.</p>
-      <div class="tablewrap"><table id="historyTable" aria-label="Histórico das rodadas"></table></div>
+      <div class="historywrap"><div id="historyTable" class="history-dashboard" aria-label="Histórico das rodadas"></div></div>
     </section>
 
     <div class="startbar full">
@@ -246,4 +249,8 @@
 <script src="/js/game.js?v=1.4.0"></script>
 
 
+<script src="/js/redesign.js?v=1.5.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="/js/jam-effects.js?v=5.0.0"></script>
 </body></html>

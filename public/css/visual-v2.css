@@ -1,0 +1,497 @@
+/* Jam na Garagem · direção de arte V2 · camada visual somente.
+   Preserva ID, eventos, regras de sala e funcionalidades preexistentes. */
+:root {
+   --jam-night: #0a0b1e;
+   --jam-deep: #11112e;
+   --jam-violet: #7f4bda;
+   --jam-purple: #ad83ef;
+   --jam-blue: #348de3;
+   --jam-gold: #ffce54;
+   --jam-pink: #ed5a94;
+   --jam-white: #f3ecff;
+   --bg: #0c0d25;
+   --panel: #16152f;
+   --panel2: #201d40;
+   --line: #494171;
+   --ink: #f2edff;
+   --muted: #b6b0d1;
+   --dim: #8e88ae;
+}
+
+html {
+   color-scheme: dark;
+   background: var(--jam-night)
+}
+
+body.jam-redesign {
+   font-family: 'Familjen Grotesk', system-ui, sans-serif;
+   background: radial-gradient(ellipse at 50% -5%, #382563 0, transparent 44%), #0a0b1e;
+   color: var(--jam-white);
+   letter-spacing: .005em
+}
+
+.jam-redesign h1,
+.jam-redesign h2,
+.jam-redesign h3,
+.jam-redesign h4,
+.jam-redesign .ph h2,
+.jam-redesign .jam-dialog-head h2 {
+   font-family: 'Barlow Condensed', 'Big Shoulders Display', Impact, sans-serif;
+   font-weight: 900;
+   letter-spacing: .025em
+}
+
+.jam-redesign button,
+.jam-redesign input,
+.jam-redesign select,
+.jam-redesign label {
+   font-family: 'Familjen Grotesk', system-ui, sans-serif
+}
+
+.jam-redesign :focus-visible {
+   outline: 3px solid var(--jam-gold);
+   outline-offset: 3px
+}
+
+/* Identidade da abertura: ilustração vetorial 2D; pixels só em pequenas molduras. */
+.jam-redesign .jam-home {
+   background: linear-gradient(90deg, #080a1bbb, #0a0b2055), url('/assets/garage-night.svg') center/cover no-repeat;
+   min-height: clamp(600px, 92svh, 960px);
+   border: 0;
+   border-bottom: 4px solid #7050ad;
+   border-radius: 0;
+   box-shadow: inset 0 -45px 100px #09091b99
+}
+
+.jam-redesign .jam-home::after,
+.jam-redesign .jam-sky,
+.jam-redesign .jam-garage {
+   display: none
+}
+
+.jam-redesign .jam-hero-content {
+   position: relative;
+   align-self: center;
+   margin-left: min(34vw, 400px);
+   background: linear-gradient(145deg, #10112bc9, #17112a95);
+   border-left: 4px solid #9060e1;
+   border-radius: 3px;
+   padding: 36px 42px;
+   box-shadow: 16px 16px 0 #090a1a55;
+   backdrop-filter: blur(3px);
+   gap: 17px;
+   max-width: 650px
+}
+
+.jam-redesign .jam-hero-content h1 {
+   font: 900 clamp(58px, 7.1vw, 112px)/.89 'Barlow Condensed', Impact, sans-serif;
+   letter-spacing: -.035em;
+   color: #f7f2ff;
+   text-transform: uppercase;
+   text-shadow: 4px 5px 0 #16132c, 8px 8px 0 #77488c;
+   transform: rotate(-2deg);
+   filter: none
+}
+
+.jam-redesign .jam-hero-content h1 em {
+   color: #b691ff;
+   text-shadow: 4px 5px 0 #17112c, 8px 8px 0 #3e2669
+}
+
+.jam-redesign .jam-kicker {
+   font: 600 11px 'Space Mono', monospace;
+   letter-spacing: .16em;
+   color: #ffe09a
+}
+
+.jam-redesign .jam-hero-content p {
+   font-size: 17px;
+   max-width: 34ch;
+   line-height: 1.35;
+   color: #e0daeb
+}
+
+.jam-redesign .jam-primary,
+.jam-redesign .go {
+   background: var(--jam-gold) !important;
+   color: #111028 !important;
+   border: 2px solid #f4e3a6 !important;
+   border-radius: 4px !important;
+   box-shadow: 4px 4px 0 #19112b !important;
+   font-family: 'Barlow Condensed', Impact, sans-serif !important;
+   font-size: 23px !important;
+   font-weight: 900 !important;
+   letter-spacing: .07em;
+   transition: transform .15s, box-shadow .15s, filter .15s
+}
+
+.jam-redesign .jam-primary:hover,
+.jam-redesign .go:hover {
+   filter: brightness(1.08);
+   transform: translate(-2px, -2px);
+   box-shadow: 6px 6px 0 #19112b !important
+}
+
+.jam-redesign .jam-start {
+   padding: 13px 50px !important;
+   font-size: 37px !important;
+   min-width: 225px
+}
+
+.jam-redesign .jam-credits {
+   bottom: 20px;
+   right: 28px;
+   color: #c7b9df;
+   opacity: .7;
+   text-decoration: none;
+   font: 11px 'Space Mono', monospace;
+   text-transform: uppercase
+}
+
+/* Cabeçalho, abas e botões: arcade rock sem excesso de ornamentos */
+.jam-redesign .jam-nav {
+   background: #0f1029f5;
+   border: 1px solid #3f366b;
+   border-top: 3px solid #8654c7;
+   border-radius: 9px;
+   margin: 14px 0 22px;
+   box-shadow: 0 9px 35px #05061366;
+   padding: 12px 19px
+}
+
+.jam-redesign .jam-brand {
+   font: 900 27px/.92 'Barlow Condensed', Impact, sans-serif;
+   letter-spacing: -.02em;
+   text-transform: uppercase;
+   color: #faf5ff;
+   transform: rotate(-2deg);
+   text-shadow: 2px 2px #2c235a
+}
+
+.jam-redesign .jam-brand b {
+   color: #c49bff
+}
+
+.jam-redesign .jam-nav button,
+.jam-redesign .jam-setting-tabs button {
+   font: 800 16px 'Barlow Condensed', sans-serif;
+   letter-spacing: .06em;
+   text-transform: uppercase;
+   background: #1b1b39;
+   border: 1px solid #4b4475;
+   color: #c9c4df;
+   border-radius: 5px;
+   padding: 10px 18px;
+   transition: background .15s, border-color .15s
+}
+
+.jam-redesign .jam-nav button:hover,
+.jam-redesign .jam-setting-tabs button:hover {
+   background: #31265a;
+   border-color: #9a75e1
+}
+
+.jam-redesign .jam-nav button.active,
+.jam-redesign .jam-setting-tabs button.active {
+   background: linear-gradient(120deg, #7540c2, #a178ed);
+   border-color: #c49fff;
+   color: white;
+   box-shadow: inset 0 -3px #4e298e
+}
+
+.jam-redesign .jam-view>.panel,
+.jam-redesign .jam-view>.library,
+.jam-redesign .jam-view>.preparation,
+.jam-redesign .jam-view>#backgroundPreparation {
+   background: linear-gradient(150deg, #1d1a3f, #14142e 72%);
+   border: 1px solid #504373;
+   border-radius: 8px;
+   box-shadow: 0 16px 38px #07071844;
+   padding: 24px
+}
+
+.jam-redesign .jam-view .ph {
+   border-bottom: 1px solid #49406b;
+   padding-bottom: 14px;
+   margin-bottom: 4px
+}
+
+.jam-redesign .jam-view .ph h2 {
+   font-size: 39px;
+   color: #f9f4ff
+}
+
+.jam-redesign .jam-view h3 {
+   font-size: 29px
+}
+
+.jam-redesign .jam-view .music-meta,
+.jam-redesign .jam-view .jam-section-hint {
+   font-size: 14px;
+   line-height: 1.5;
+   color: #aaa6ce
+}
+
+.jam-redesign .jam-view .tabs {
+   gap: 6px;
+   margin-bottom: 13px;
+   scrollbar-width: thin;
+   scrollbar-color: #6e5395 transparent
+}
+
+.jam-redesign .jam-view .tab {
+   padding: 10px 16px;
+   white-space: nowrap;
+   border: 1px solid transparent;
+   border-radius: 5px 5px 0 0;
+   color: #b5afd0;
+   font-weight: 700
+}
+
+.jam-redesign .jam-view .tab[aria-selected=true] {
+   background: #362858;
+   border-bottom: 3px solid #ffce54;
+   border-color: #59437e;
+   color: white
+}
+
+.jam-redesign .jam-view .demo,
+.jam-redesign .jam-view .music-row,
+.jam-redesign .jam-view .music-list li {
+   border: 1px solid #49406a;
+   border-radius: 7px;
+   background: #1f1c3c;
+   box-shadow: none
+}
+
+.jam-redesign .jam-view .demo:hover,
+.jam-redesign .jam-view .music-row:hover,
+.jam-redesign .jam-view .music-list li:hover {
+   border-color: #9a73e2;
+   background: #292346
+}
+
+.jam-redesign .btn {
+   border-radius: 5px;
+   border: 1px solid #726397;
+   background: #211e3f;
+   color: #ede8ff;
+   font-weight: 800;
+   letter-spacing: .01em;
+   transition: background .15s, transform .15s
+}
+
+.jam-redesign .btn:hover {
+   background: #322858;
+   transform: translateY(-1px)
+}
+
+.jam-redesign .btn.solid {
+   background: #9063e0;
+   color: #fff;
+   border-color: #aa83f0
+}
+
+.jam-redesign input:not([type=range]):not([type=checkbox]):not([type=radio]),
+.jam-redesign select {
+   background: #12132e;
+   border: 1px solid #625482;
+   color: #faf7ff;
+   border-radius: 5px;
+   min-height: 43px
+}
+
+.jam-redesign input:focus,
+.jam-redesign select:focus {
+   border-color: #ba95fc
+}
+
+.jam-redesign .jam-entry {
+   background: linear-gradient(135deg, #222043, #15142f);
+   border: 2px solid #9468d1;
+   border-radius: 8px;
+   box-shadow: 0 25px 100px #0009, 6px 6px 0 #342352
+}
+
+.jam-redesign .jam-entry .ph h2 {
+   font-size: 49px
+}
+
+.jam-redesign .jam-entry #btnJoin {
+   background: var(--jam-gold);
+   color: #171327;
+   border: 0
+}
+
+.jam-redesign #jam-band>.startbar {
+   background: linear-gradient(145deg, #252047, #16142e);
+   border-color: #5b4b80;
+   border-radius: 8px
+}
+
+.jam-redesign #jam-band>.startbar .go {
+   width: 100%;
+   margin-top: 7px
+}
+
+.jam-redesign .jam-dialog {
+   background: linear-gradient(160deg, #211a42, #101129 76%);
+   border: 2px solid #9769d8;
+   border-radius: 9px;
+   box-shadow: 0 28px 90px #000d, 7px 7px 0 #32234f
+}
+
+.jam-redesign .jam-dialog-head {
+   background: linear-gradient(90deg, #29204c, #181431);
+   border-bottom: 1px solid #635189
+}
+
+.jam-redesign .jam-dialog-head h2 {
+   font-size: 42px
+}
+
+.jam-redesign .jam-setting-content .field {
+   background: #211d40;
+   border: 1px solid #453866;
+   border-radius: 7px
+}
+
+.jam-redesign .jam-avatar-art {
+   background: radial-gradient(circle at 55% 40%, #4b3579, #15152e 70%);
+   border: 1px solid #7b5aa6
+}
+
+.jam-redesign .jam-avatar-placeholder {
+   border: 2px dashed #8f6dbb;
+   background: linear-gradient(135deg, #3a2c65, #191631)
+}
+
+.jam-redesign .jam-avatar-arrow {
+   background: #31254f;
+   border: 1px solid #8566ba;
+   color: #f4edff
+}
+
+.jam-redesign .jam-avatar-profile h3 {
+   font-size: 52px;
+   color: #e8d8ff
+}
+
+.jam-redesign .jam-avatar-profile dt {
+   color: #b49adb
+}
+
+.jam-redesign .jam-info {
+   background: #241e42;
+   border: 1px solid #55416f
+}
+
+.jam-redesign .jam-queue-intro {
+   padding: 17px 22px;
+   border-left: 4px solid var(--jam-gold);
+   background: linear-gradient(90deg, #282046, #171631);
+   border-radius: 5px;
+   margin-bottom: 16px
+}
+
+.jam-redesign .jam-queue-intro h2 {
+   font-family: 'Barlow Condensed', Impact, sans-serif;
+   font-size: 38px;
+   letter-spacing: .02em;
+   text-transform: uppercase
+}
+
+/* Barra de rolagem discreta, microdetalhes em vez de glitter espalhado */
+.jam-redesign ::-webkit-scrollbar {
+   width: 9px;
+   height: 8px
+}
+
+.jam-redesign ::-webkit-scrollbar-thumb {
+   background: #62508d;
+   border-radius: 8px
+}
+
+.jam-redesign ::-webkit-scrollbar-track {
+   background: #14132b
+}
+
+@media(min-width:850px) {
+   .jam-redesign .jam-views {
+      position: relative
+   }
+
+   .jam-redesign .jam-views::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      background: radial-gradient(ellipse at 5% 90%, #54366e25, transparent 42%), radial-gradient(ellipse at 100% 12%, #294f8020, transparent 35%);
+      pointer-events: none
+   }
+}
+
+@media(max-width:850px) {
+   .jam-redesign .jam-hero-content {
+      margin: 0 17px 0 15%;
+      padding: 28px 20px
+   }
+
+   .jam-redesign .jam-home {
+      background-position: 35% center
+   }
+
+   .jam-redesign .jam-hero-content h1 {
+      font-size: clamp(53px, 13vw, 88px)
+   }
+
+   .jam-redesign .jam-nav {
+      margin-top: 0
+   }
+
+   .jam-redesign .jam-view>.panel {
+      padding: 15px
+   }
+}
+
+@media(max-width:520px) {
+   .jam-redesign .jam-hero-content {
+      margin: 0 9px;
+      padding: 22px 12px;
+      backdrop-filter: blur(2px)
+   }
+
+   .jam-redesign .jam-hero-content h1 {
+      font-size: clamp(54px, 17vw, 78px)
+   }
+
+   .jam-redesign .jam-home {
+      min-height: 92svh;
+      background-position: 38% center
+   }
+
+   .jam-redesign .jam-view .ph h2 {
+      font-size: 33px
+   }
+
+   .jam-redesign .jam-brand {
+      font-size: 22px
+   }
+
+   .jam-redesign .jam-nav button {
+      padding: 9px 7px;
+      font-size: 14px
+   }
+
+   .jam-redesign .jam-dialog-head h2 {
+      font-size: 33px
+   }
+}
+
+@media(prefers-reduced-motion:reduce) {
+   .jam-redesign * {
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important
+   }
+}
