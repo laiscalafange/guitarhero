@@ -1,5 +1,5 @@
 /**
- * Jam na Garagem — servidor HTTP + WebSocket, sem dependências externas.
+ * BDSM de Garagem — servidor HTTP + WebSocket, sem dependências externas.
  * Mantém salas e o áudio da sala temporariamente em memória (sem armazenamento permanente).
  * Node.js 22+.
  */
@@ -46,13 +46,8 @@ const server = http.createServer(async (req, res) => {
       '.mjs': 'text/javascript; charset=utf-8',
       '.wasm': 'application/wasm',
       '.json': 'application/json; charset=utf-8',
-      '.bin': 'application/octet-stream',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.webp': 'image/webp',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon'
+      '.bin': 'application/octet-stream'
+      ,'.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
     }[ext];
     if (!target.startsWith(publicRoot + path.sep) || !mime ||
       !fs.existsSync(target) || !fs.statSync(target).isFile()) {
@@ -167,6 +162,7 @@ function applyPresence(c, d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return;
   const p = c.presence;
   if (typeof d.n === 'string') p.n = d.n.trim().slice(0, 16) || 'Jogador';
+  if (['chapola','irisu','roberto','ratazana','lizzi','gio','tatsugiri'].includes(d.avatar)) p.avatar = d.avatar;
   const available = analysis.state(c.room,c.room.song?.meta.key);
   if (allowedInstruments.has(d.i) && (available.status !== 'ready' || available.instruments.includes(d.i))) p.i = d.i;
   if (allowedDifficulties.has(d.d)) p.d = d.d;
@@ -350,5 +346,5 @@ const heart = setInterval(() => {
   }
 }, 30000);
 heart.unref();
-server.listen(PORT, '0.0.0.0', () => console.log(`Jam na Garagem disponível na porta ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`BDSM de Garagem disponível na porta ${PORT}`));
 process.on('SIGTERM', () => { for (const room of rooms.values()) for (const c of room.members) close(c, 1001, 'Servidor reiniciado'); server.close(); });

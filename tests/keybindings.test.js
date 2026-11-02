@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 test('teclas personalizadas persistíveis: troca duplicadas, evita conflito com alternativa e restaura padrão',()=>{
-  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+  const html=fs.readFileSync(path.join(__dirname,'../public/js/game.js'),'utf8');
   const code=html.slice(html.indexOf('const KEYSETS ='),html.indexOf('// END CUSTOM KEYS'));
   const c=vm.createContext({});vm.runInContext(code,c);
   const run=expression=>vm.runInContext(expression,c);

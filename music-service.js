@@ -81,7 +81,8 @@ module.exports = function createMusicService({ rooms, broadcast, youtubeProvider
       if(url.pathname==='/api/charts/search'&&req.method==='GET'){
         const q=String(url.searchParams.get('q')||'').trim();if(q.length<2||q.length>160){error(res,400,'Digite de 2 a 160 caracteres.');return true;}
         if(c.checkingCharts){error(res,429,'Aguarde a consulta atual.');return true;}
-        c.checkingCharts=true;try{json(res,await catalogProvider.search(q));}finally{c.checkingCharts=false;}return true;
+        const filters=Object.fromEntries(['page','instrument','difficulty','sort','artist','title'].map(key=>[key,url.searchParams.get(key)||'']));
+        c.checkingCharts=true;try{json(res,await catalogProvider.search(q,filters));}finally{c.checkingCharts=false;}return true;
       }
       if (url.pathname === '/api/youtube/search' && req.method === 'GET') {
         const query = (url.searchParams.get('q') || '').trim();

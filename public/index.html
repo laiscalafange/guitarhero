@@ -1,46 +1,107 @@
 <!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Jam na Garagem Online</title>
-<link rel="stylesheet" href="/css/styles.css?v=1.5.0">
+<title>BDSM de Garagem</title>
+<meta name="description" content="A cidade dorme. A banda não. Escolha seu personagem e toque com os amigos numa jam online.">
+<link rel="stylesheet" href="/css/styles.css?v=1.4.0">
+<link rel="stylesheet" href="/css/entrance.css?v=1.5.1">
+<link rel="stylesheet" href="/css/title-screen.css?v=1.6.0">
+<link rel="stylesheet" href="/css/character-themes.css?v=1.6.1">
+<link rel="stylesheet" href="/css/music-room.css?v=1.7.0">
+<link rel="stylesheet" href="/css/room-shell.css?v=1.9.0">
+<link rel="stylesheet" href="/css/chart-search.css?v=1.9.1">
+<link rel="stylesheet" href="/css/chapola-theme.css?v=2.0.8">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Space+Mono:wght@400;700&family=Big+Shoulders+Display:wght@700;800;900&family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Press+Start+2P&family=Big+Shoulders+Display:wght@700;800;900&family=DM+Mono:wght@400;500&family=Familjen+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="/css/redesign.css?v=1.5.0">
-<link rel="stylesheet" href="/css/jam-theme.css?v=5.0.0">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Press+Start+2P&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head><body>
+</head><body class="at-entrance has-start">
 
 <main id="setup" class="wrap">
-  <header class="mast">
-    <p class="kicker">Online · até 8 jogadores · cada um no seu teclado ou tela</p>
-    <h1>Jam na Garagem</h1>
-    <div class="stripe" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <p class="lede">Crie uma sala e compartilhe o link: cada pessoa toca no próprio celular ou computador, em tempo real.</p>
+  <div id="entranceScene" class="entrance-scene" aria-hidden="true"></div>
+  <section id="titleScreen" class="title-screen" aria-labelledby="gameTitle">
+    <p class="online-badge">ONLINE · ATÉ 8 JOGADORES</p>
+    <h1 id="gameTitle" class="game-title"><span>BDSM DE</span><span>GARAGEM</span></h1>
+    <button id="startGame" class="start-button" type="button"><span aria-hidden="true">▶</span> START</button>
+  </section>
+  <header class="entrance-nav room-header"><a class="wordmark" href="/" aria-label="BDSM de Garagem início"><span class="brand-pick">B</span> BDSM DE GARAGEM</a>
+    <div class="room-tabs" role="tablist" aria-label="Seções da sala"><button type="button" role="tab" id="room-tab-band" data-room-tab="band" aria-controls="room-view-band" aria-selected="true" tabindex="0">Banda</button><button type="button" role="tab" id="room-tab-music" data-room-tab="music" aria-controls="room-view-music" aria-selected="false" tabindex="-1">Músicas</button><button type="button" role="tab" id="room-tab-queue" data-room-tab="queue" aria-controls="room-view-queue" aria-selected="false" tabindex="-1" aria-label="Fila">Fila <span id="roomQueueCount" aria-hidden="true">0</span></button></div>
+    <div class="room-profile"><button id="roomProfileButton" class="room-profile-button" type="button" aria-label="Editar perfil" aria-haspopup="dialog"><span id="roomPlayerName">Jogador</span><img id="roomPlayerAvatar" alt="" hidden></button><button id="roomSettingsButton" class="room-settings-button" type="button" aria-label="Ajustes" title="Ajustes" aria-controls="room-view-settings" aria-expanded="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 3-.6 2.3-2 .9-2.2-.6-2 3.4 1.7 1.7v2.6L2.2 15l2 3.4 2.2-.6 2 .9L9 21h4l.6-2.3 2-.9 2.2.6 2-3.4-1.7-1.7v-2.6l1.7-1.7-2-3.4-2.2.6-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg></button></div>
   </header>
+  <dialog id="roomProfileDialog" class="room-profile-dialog" aria-labelledby="roomProfileTitle"><header><h2 id="roomProfileTitle">Seu perfil</h2><button id="closeRoomProfile" type="button" aria-label="Fechar perfil">✕</button></header><form id="roomProfileForm"><label for="roomProfileName">Nome na sala</label><input id="roomProfileName" maxlength="16" required autocomplete="nickname"><button class="btn solid" type="submit" id="saveRoomProfile">Salvar nome</button></form><button class="btn" type="button" id="changeRoomCharacter">Mudar personagem</button><p id="roomProfileStatus" role="status" aria-live="polite"></p></dialog>
+  <dialog id="allChartResultsDialog" class="music-room all-charts-dialog" aria-labelledby="allChartResultsTitle"><header><div><h2 id="allChartResultsTitle">Todos os resultados</h2><p id="allChartResultsQuery"></p></div><button class="btn" id="closeAllChartResults" type="button" aria-label="Fechar todos os resultados">Fechar ✕</button></header><div id="allChartResultsBody" class="all-charts-body"></div><footer><button class="btn" id="allChartsPrevious" type="button">← Anterior</button><div class="all-charts-navigation"><p id="allChartsPage" role="status" aria-live="polite"></p><form id="allChartsJumpForm"><label for="allChartsJump">Ir para página</label><input id="allChartsJump" type="number" min="1" step="1" value="1" required><button class="btn" type="submit" id="allChartsJumpButton">Ir</button></form></div><button class="btn" id="allChartsNext" type="button">Próxima →</button></footer></dialog>
+  <button id="backToStart" class="back-to-start" type="button" hidden>← Voltar ao início</button>
+  <div class="entrance-layout" id="entranceLayout" hidden>
 
-  <section id="roomPanel" class="panel" aria-labelledby="h-sala">
-    <div class="ph"><h2 id="h-sala">Sala</h2></div>
+  <section id="roomPanel" class="panel" aria-label="Entrar no jogo">
+    <button class="avatar-teaser" id="chooseAvatar" type="button" aria-haspopup="dialog"><span class="avatar-teaser-image"><img id="chosenAvatarImage" src="/assets/avatars/chapola-face.jpg" alt=""></span><span><small>QUEM VAI SUBIR NO PALCO?</small><strong id="chosenAvatarName">Escolha seu personagem</strong><span class="avatar-teaser-sub">7 personalidades. A sua banda.</span></span><span class="avatar-arrow" aria-hidden="true">↗</span></button>
     <div class="roomrow">
-      <label>Seu nome<input id="nick" maxlength="16" autocomplete="off"></label>
-      <label>Código da sala<input id="code" maxlength="24" autocomplete="off" placeholder="ex.: garagem1"></label>
-      <button class="btn solid" id="btnJoin" type="button">Entrar</button>
-      <button class="btn" id="btnNew" type="button">Criar sala nova</button>
-      <button class="btn" id="btnSolo" type="button">Jogar sozinho</button>
+      <label>COMO A BANDA TE CHAMA?<input id="nick" maxlength="16" autocomplete="nickname" placeholder="Seu nome ou apelido"></label>
+      <label>JÁ TEM UMA SALA?<span class="room-code-input"><input id="code" maxlength="24" autocomplete="off" placeholder="Digite o código da banda"><button class="btn" id="btnJoin" type="button" aria-label="Entrar na sala">Entrar ↗</button></span></label>
+      <div class="entry-divider"><span>ou comece sua própria sessão</span></div>
+      <button class="btn solid" id="btnNew" type="button">CRIAR SALA NOVA <span aria-hidden="true">↗</span></button>
+      <button class="btn" id="btnSolo" type="button">Jogar sozinho <span aria-hidden="true">→</span></button>
     </div>
     <p class="status" id="roomStatus" role="status" aria-live="polite"></p>
+    <p class="entry-footnote"><span aria-hidden="true">✧</span> Cada um no seu aparelho. Todo mundo no mesmo ritmo.</p>
   </section>
+  </div>
+  <footer class="entrance-footer"><span>EST. À MEIA-NOITE</span><span>UMA JAM ENTRE AMIGOS <i>★</i></span><span>VOLUME NO PONTO. NOITE SEM PRESSA.</span></footer>
+  <button class="credits-button" id="openCredits" type="button" aria-haspopup="dialog">Créditos</button>
+  <dialog class="credits-dialog" id="creditsDialog" aria-labelledby="creditsTitle"><button class="dialog-close" id="closeCredits" type="button" aria-label="Fechar créditos">✕</button><p class="entry-step">UMA BANDA. UMA VARANDA. UMA NOITE INTEIRA.</p><h2 id="creditsTitle">BDSM de Garagem</h2><p>Com Chapola, Irisu, Roberto Montanna, Ratazana, Lizzi / Raul Ameixas, Johgi e Tatsugiri.</p><p class="credits-signoff">Feito para tocar junto. Até a última música. ★</p></dialog>
 
-  <div class="board" id="lobby" hidden>
-    <div class="col">
-    <section class="panel" aria-labelledby="h-musica">
-      <div class="ph"><h2 id="h-musica">Música</h2></div>
+  <dialog id="avatarDialog" class="avatar-dialog" aria-labelledby="avatarTitle">
+    <div class="avatar-dialog-top"><span>BDSM DE GARAGEM / ELENCO DA NOITE</span><button id="closeAvatars" class="dialog-close" type="button" aria-label="Fechar seleção de personagem">✕</button></div>
+    <div class="avatar-dialog-heading"><div><p class="entry-step">02 — ENCONTRE SUA VIBE</p><h2 id="avatarTitle">QUEM É VOCÊ<br><em>NESSA BANDA?</em></h2></div><p>Todo mundo tem um lado B.<br>Escolha o seu.</p></div>
+    <div class="character-layout"><div class="character-art"><span class="character-issue" id="characterIssue">Nº 01 / 07</span><span class="character-spark" aria-hidden="true">✳</span><img id="characterImage" src="/assets/avatars/chapola.jpg" alt="Chapola de corpo inteiro"><span class="character-art-name" id="characterArtName">CHAPOLA</span></div><div class="character-info"><p class="ticket-label">NOME ARTÍSTICO</p><h3 id="characterName">Chapola</h3><p id="characterDescription"></p><dl id="characterDetails"></dl><button class="btn solid" id="confirmAvatar" type="button">ESSE É MEU PERSONAGEM <span aria-hidden="true">↗</span></button><p class="character-hint">O personagem é visual. Você escolhe seu instrumento na sala.</p></div></div>
+    <div class="character-picker" id="characterPicker" role="group" aria-label="Personagens disponíveis"></div>
+    <div class="character-picker-footer"><span>← → PARA EXPLORAR</span><span>7 PERSONAGENS / UMA BANDA</span></div>
+  </dialog>
+
+  <div id="lobby" class="room-layout" hidden>
+    <div class="room-content">
+      <section id="room-view-band" class="room-view" role="tabpanel" aria-labelledby="room-tab-band" data-room-panel="band">
+    <section id="roomBand" class="panel" aria-labelledby="h-banda">
+      <header class="room-section-heading"><p class="room-eyebrow">SEU LUGAR NO ENSAIO</p><h2 id="h-banda">Banda</h2><p>Escolha seu instrumento, sua dificuldade e marque quando estiver pronto.</p></header>
+      <div class="music-room band-song-area">
+      <section class="music-current" aria-labelledby="musicCurrentTitle" data-state="empty">
+        <div class="music-current-symbol" aria-hidden="true"><span>♪</span><i></i><i></i><i></i><i></i></div>
+        <div class="music-current-copy"><p class="music-eyebrow">MÚSICA SELECIONADA</p><h3 id="musicCurrentTitle">Escolha uma música</h3><p id="musicCurrentMeta">Use um exemplo ou adicione uma música à sala.</p><div id="musicCurrentInstruments" class="music-tags" aria-label="Instrumentos disponíveis"></div></div>
+        <div class="music-current-state"><span id="musicCurrentStatus" class="music-state-badge" role="status">Nenhuma selecionada</span><p id="musicCurrentHint">As músicas prontas podem ser escolhidas na playlist.</p></div>
+      </section>
+      <section id="musicPreparation" class="preparation music-preparation" aria-label="Estado da música selecionada">
+        <p class="status" id="songStatus" role="status" aria-live="polite"></p>
+        <p class="status" id="analysisStatus" role="status" aria-live="polite">Preparando as opções de J1…</p>
+        <progress id="analysisProgress" max="1" value="0" hidden style="width:100%"></progress>
+        <div class="music-actions"><button class="btn" id="analyzeSong" type="button" hidden>Preparar música</button><button class="btn" id="cancelAnalysis" type="button" hidden>Cancelar preparação</button></div>
+        <p class="music-meta" id="analysisHint"></p>
+      </section>
+      </div>
+      <div class="strips" id="strips"></div>
+      <ul class="roster" id="roster"></ul>
+      <details class="room-help"><summary>Como jogar em banda</summary><p class="hint">Cada pessoa toca no próprio teclado ou na tela. Configure 3, 4 ou 5 teclas em Ajustes. Teclas apertadas fora de hora não descontam pontos; o erro conta quando uma nota passa sem ser completada. Segure as notas longas até o final.</p></details>
+    </section>
+    <section id="roomHistory" class="panel" aria-labelledby="historyTitle">
+      <header class="room-section-heading"><p class="room-eyebrow">AS RODADAS DA BANDA</p><h2 id="historyTitle">Histórico</h2><p>Compare os resultados e acompanhe as pontuações da sala.</p></header>
+      <p class="hint">Histórico compartilhado na sala (últimas 20 rodadas, enquanto ela estiver aberta).</p>
+      <p class="music-empty" id="historyEmpty">Nenhuma rodada jogada ainda.</p>
+      <div class="tablewrap"><table id="historyTable" aria-label="Histórico das rodadas"></table></div>
+    </section>
+
+      </section>
+      <section id="room-view-music" class="room-view" role="tabpanel" aria-labelledby="room-tab-music" data-room-panel="music" hidden>
+    <section id="musicRoom" class="panel music-room" aria-labelledby="h-musica">
+      <header class="music-room-header"><div><h2 id="h-musica">Músicas</h2><p>Encontre uma música e adicione à fila da sala.</p></div><div class="music-room-capacity"><span>ARQUIVOS NA SALA</span><strong id="playlistCount" aria-live="polite">0 / 10</strong><button class="btn" type="button" data-room-route="queue">Abrir fila</button></div></header>
+      <div class="music-workspace">
+      <section class="music-card music-sources" aria-labelledby="musicSourcesTitle">
+      <header class="music-card-heading"><div><h3 id="musicSourcesTitle">Adicionar músicas</h3></div><span class="music-section-mark" aria-hidden="true">＋</span></header>
       <div class="tabs" role="tablist" aria-label="Origem da música">
         <button class="tab" role="tab" id="tab-demo" aria-selected="true" aria-controls="pan-demo" type="button" data-tab="demo">Exemplos</button>
         <button class="tab" role="tab" id="tab-file" aria-selected="false" aria-controls="pan-file" type="button" data-tab="file">Meu arquivo</button>
         <button class="tab" role="tab" id="tab-youtube" aria-selected="false" aria-controls="pan-youtube" type="button" data-tab="youtube">YouTube</button>
         <button class="tab" role="tab" id="tab-charts" aria-selected="false" aria-controls="pan-charts" type="button" data-tab="charts">Partituras prontas</button>
       </div>
+      <div class="music-source-caption"><p id="musicSourceTitle">Um ensaio para começar</p><p id="musicSourceHint">Músicas de exemplo já prontas, sem download nem análise.</p></div>
+      <div class="music-source-content">
       <div id="pan-demo" role="tabpanel" aria-labelledby="tab-demo" class="demos" data-radiogroup></div>
       <div id="pan-file" role="tabpanel" aria-labelledby="tab-file" hidden>
         <label class="drop" id="drop" for="fileIn">
@@ -53,86 +114,56 @@
         <form class="search-form" id="youtubeForm">
           <label for="youtubeQuery">Qual música vamos tocar?</label>
           <div class="search-bar"><input id="youtubeQuery" type="search" maxlength="160" minlength="2" required placeholder="Nome, artista ou link do YouTube"><button class="btn solid" id="youtubeSearch" type="submit">Pesquisar</button></div>
-          <p class="music-meta">Importar o áudio inicia a fila de IA. Para usar notas prontas, abra a biblioteca e importe o pacote com a partitura e o áudio correspondente. Até 15 minutos e 25 MB por áudio.</p>
+          <p class="music-meta">O áudio entra na fila de análise. Você pode jogar outra música pronta enquanto espera. Até 15 minutos e 25 MB por áudio.</p>
         </form>
         <p class="status" id="youtubeStatus" role="status" aria-live="polite"></p>
         <ul class="music-list" id="youtubeResults" aria-label="Resultados do YouTube"></ul>
       </div>
-      <p class="status" id="songStatus" role="status" aria-live="polite"></p>
       <div id="pan-charts" role="tabpanel" aria-labelledby="tab-charts" hidden>
-        <form id="chartSearchForm"><label for="chartQuery">Procurar na biblioteca Chorus Encore</label><div class="search-bar"><input id="chartQuery" type="search" minlength="2" maxlength="160" required placeholder="Artista e nome da música"><button class="btn solid" type="submit">Consultar</button></div></form>
-        <details class="chart-extras">
-          <summary>Artistas brasileiros e mais bibliotecas</summary>
-          <div class="chart-extras-body">
-            <label for="brArtist">Pesquise um artista brasileiro no catálogo atual:</label>
-            <div class="search-bar">
-              <select id="brArtist" aria-label="Artista brasileiro">
-                <option value="">Escolha um artista</option>
-                <optgroup label="Rock e metal nacional">
-                  <option>Pitty</option><option>Charlie Brown Jr.</option><option>Legião Urbana</option>
-                  <option>Raimundos</option><option>CPM 22</option><option>Fresno</option>
-                  <option>Skank</option><option>Sepultura</option><option>Mamonas Assassinas</option>
-                </optgroup>
-                <optgroup label="MPB e pop brasileiro">
-                  <option>Djavan</option><option>Gilberto Gil</option><option>Tim Maia</option>
-                  <option>Alceu Valença</option><option>Marisa Monte</option><option>Tribalistas</option>
-                  <option>Caetano Veloso</option><option>Gal Costa</option>
-                  <option>Anitta</option><option>Ludmilla</option><option>Six Sex</option><option>Alok</option>
-                </optgroup>
-                <optgroup label="Rap, pagode e sertanejo">
-                  <option>Racionais MC's</option><option>Emicida</option><option>Raça Negra</option>
-                  <option>Marília Mendonça</option><option>Jorge &amp; Mateus</option>
-                </optgroup>
-              </select>
-              <button class="btn" id="brArtistSearch" type="button">Buscar artista</button>
-            </div>
-            <p class="music-meta">São sugestões de busca, não uma lista de músicas garantidas.</p>
-            <div class="music-actions">
-              <a class="btn" href="https://rhythmverse.co/songfiles/game" target="_blank" rel="noopener noreferrer">RhythmVerse</a>
-              <a class="btn" href="https://customsongscentral.com/" target="_blank" rel="noopener noreferrer">Custom Songs Central</a>
-            </div>
-            <p class="music-meta">As bibliotecas extras abrem em outra aba. Baixe um pacote compatível com direitos de uso adequados e importe em "ZIP ou arquivos" abaixo. Arquivos do Rock Band em formato CON não são aceitos diretamente.</p>
-          </div>
-        </details>
+        <header class="chart-browser-heading"><div><h3>Biblioteca de partituras</h3></div><button class="btn" id="expandChartSearch" type="button" aria-pressed="false">Ampliar busca</button></header>
+        <form id="chartSearchForm">
+          <div class="chart-query-fields"><label for="chartQuery">Música ou artista<input id="chartQuery" type="search" maxlength="160" placeholder="Ex.: Queen — Don't Stop Me Now"></label><label for="chartArtist">Artista específico (opcional)<input id="chartArtist" type="search" maxlength="100" placeholder="Ex.: Queen"></label></div>
+          <div class="chart-filter-fields"><label for="chartInstrument">Instrumento<select id="chartInstrument"><option value="">Todos</option><option value="guitarra">Guitarra</option><option value="baixo">Baixo</option><option value="bateria">Bateria</option><option value="teclado">Teclado</option></select></label><label for="chartDifficulty">Dificuldade<select id="chartDifficulty"><option value="">Todas</option><option value="easy">Fácil</option><option value="medium">Médio</option><option value="hard">Difícil</option><option value="expert">Expert</option></select></label><label for="chartSort">Ordenar por<select id="chartSort"><option value="relevance">Correspondência</option><option value="name">Nome da música</option><option value="artist">Artista</option><option value="length">Menor duração</option></select></label><button class="btn solid" id="chartSearchButton" type="submit">Pesquisar</button><button class="btn" id="clearChartFilters" type="button">Limpar filtros</button></div>
+        </form>
+        <div class="chart-results-heading"><p id="chartResultSummary" role="status" aria-live="polite">Pesquise para ver as versões disponíveis.</p><span id="chartResultCount"></span><button class="btn" id="viewAllChartResults" type="button" aria-haspopup="dialog" hidden>Ver todos os resultados</button></div>
+        <p class="music-empty" id="chartSearchEmpty" hidden></p>
         <p class="music-meta">Clique em Importar pacote para baixar o áudio e as notas juntos e adicionar à sala. Confira artista, versão, duração e instrumentos. Você também pode importar arquivos locais.</p>
-        <ul class="music-list" id="chartResults" aria-label="Partituras do catálogo"></ul>
-        <div class="music-actions"><label class="btn" for="chartFiles">Importar ZIP ou arquivos</label><label class="btn" for="chartFolder">Importar pasta</label></div>
+        <ul class="music-list chart-results" id="chartResults" aria-label="Partituras do catálogo" aria-busy="false"></ul><button class="btn chart-load-more" id="chartLoadMore" type="button" hidden>Carregar mais resultados</button>
+        <details class="music-local-import"><summary>Já tem um pacote no computador?</summary><div class="music-actions"><label class="btn" for="chartFiles" tabindex="0">Importar ZIP ou arquivos</label><label class="btn" for="chartFolder" tabindex="0">Importar pasta</label></div><p class="music-meta">SNG, ZIP ou uma pasta com a partitura e seu áudio.</p></details>
         <input id="chartFiles" class="sr" type="file" multiple accept=".sng,.zip,.chart,.mid,.ini,audio/*"><input id="chartFolder" class="sr" type="file" multiple webkitdirectory>
-        <p class="music-meta">As notas prontas preservam os tempos e dificuldades do autor. O áudio completo é compartilhado sem separar instrumentos por IA. Neste modo, o erro toca um efeito e não silencia uma faixa individual.</p>
         <p id="chartStatus" class="status" role="status" aria-live="polite"></p>
         <progress id="chartDownloadProgress" max="1" value="0" hidden style="width:100%" aria-label="Progresso do download do pacote"></progress>
       </div>
-      <div id="musicPreparation" class="preparation">
-        <p class="status" id="analysisStatus" role="status" aria-live="polite">Preparando as opções de J1…</p>
-        <progress id="analysisProgress" max="1" value="0" hidden style="width:100%"></progress>
-        <div class="music-actions"><button class="btn" id="analyzeSong" type="button" hidden>Preparar música</button><button class="btn" id="cancelAnalysis" type="button" hidden>Cancelar preparação</button></div>
-        <p class="music-meta" id="analysisHint"></p>
       </div>
-
-      <div id="backgroundPreparation" hidden>
-        <p class="status" id="backgroundStatus" role="status" aria-live="polite"></p>
-        <progress id="backgroundProgress" max="1" value="0" style="width:100%"></progress>
-        <button class="btn" id="cancelBackground" type="button" hidden>Cancelar preparação em segundo plano</button>
-      </div>
-      <section class="library" aria-labelledby="h-playlist">
-        <div class="library-head"><h3 id="h-playlist">Playlist da sala</h3><span id="playlistCount" aria-live="polite">0 / 10</span></div>
-        <p class="music-meta">Todos podem adicionar, escolher e remover. A lista dura enquanto houver alguém na sala.</p>
-        <div class="library-head"><h4>Prontas para jogar <span id="readyCount">0</span></h4><button class="btn" id="randomSong" type="button" disabled>Sortear música da fila</button></div>
-        <ul class="music-list" id="playlist" aria-label="Músicas prontas para jogar"></ul>
-        <p class="music-empty" id="playlistEmpty">Nenhum áudio pronto ainda. Você pode jogar os exemplos enquanto a fila avança.</p>
-        <h4>Na fila de análise <span id="pendingCount">0</span></h4>
-        <p class="music-meta">Preparação automática, uma por vez, inclusive durante a partida. Analisar agora muda a prioridade; a atual volta à fila e recomeça depois.</p>
-        <p class="music-meta" id="queueDevice">O anfitrião prepara a fila. Mantenha a aba aberta.</p>
-        <button class="btn" id="processQueue" type="button" hidden>Analisar neste aparelho</button>
-        <label class="music-meta" style="display:block;margin:12px 0"><input type="checkbox" id="gpuAnalysis"> Testar GPU na próxima análise (experimental, baixa cerca de 30 MB extras no primeiro uso)</label>
-        <ul class="music-list" id="pendingPlaylist" aria-label="Fila de análise"></ul>
-        <p class="music-empty" id="pendingEmpty">Nenhuma música aguardando análise.</p>
-        <p class="status" id="libraryStatus" role="status" aria-live="polite"></p>
       </section>
+      </div>
     </section>
 
-    <section class="panel" aria-labelledby="h-ajustes">
-      <div class="ph"><h2 id="h-ajustes">Ajustes</h2></div>
+      </section>
+      <section id="room-view-queue" class="room-view" role="tabpanel" aria-labelledby="room-tab-queue" data-room-panel="queue" hidden>
+<section class="music-room room-queue-area">      <section class="music-card music-library" aria-labelledby="h-playlist">
+        <header class="music-card-heading"><div><p class="music-eyebrow">A PLAYLIST COMPARTILHADA</p><h2 id="h-playlist">Fila da sala</h2></div><span class="music-section-mark" aria-hidden="true">≡</span></header>
+        <p class="music-meta">Todos podem adicionar, escolher e remover. Os arquivos são temporários.</p>
+        <section class="music-ready" aria-labelledby="musicReadyTitle"><div class="library-head"><h4 id="musicReadyTitle"><span class="music-status-dot" aria-hidden="true"></span>Prontas para jogar <span id="readyCount" class="music-count">0</span></h4><button class="btn" id="randomSong" type="button" disabled>Sortear música</button></div>
+        <ul class="music-list" id="playlist" aria-label="Músicas prontas para jogar"></ul>
+        <p class="music-empty" id="playlistEmpty"><strong>O próximo som pode ser seu.</strong><span>Adicione uma música ou toque um dos exemplos enquanto a playlist fica pronta.</span></p></section>
+        <section class="music-queue" aria-labelledby="musicQueueTitle"><div class="library-head"><h4 id="musicQueueTitle"><span class="music-status-dot pending" aria-hidden="true"></span>Em preparação <span id="pendingCount" class="music-count">0</span></h4><span class="music-queue-order">ORDEM DE ADIÇÃO</span></div>
+        <div id="backgroundPreparation" hidden>
+          <p class="status" id="backgroundStatus" role="status" aria-live="polite"></p>
+          <progress id="backgroundProgress" max="1" value="0" aria-label="Preparação em segundo plano"></progress>
+          <button class="btn" id="cancelBackground" type="button" hidden>Cancelar preparação em segundo plano</button>
+        </div>
+        <ul class="music-list" id="pendingPlaylist" aria-label="Fila de análise"></ul>
+        <p class="music-empty compact" id="pendingEmpty">Nenhuma música aguardando análise.</p>
+        <details class="music-queue-settings"><summary>Opções de preparação</summary><div>
+        <button class="btn" id="processQueue" type="button" hidden>Analisar neste aparelho</button>
+        <label class="music-meta music-gpu-option"><input type="checkbox" id="gpuAnalysis"> Testar GPU na próxima análise</label><p class="music-meta">Experimental. Baixa cerca de 30 MB extras no primeiro uso.</p></div></details></section>
+        <p class="status" id="libraryStatus" role="status" aria-live="polite"></p>
+      </section>
+</section>      </section>
+      <section id="room-view-settings" class="room-view" role="region" aria-labelledby="h-ajustes" data-room-panel="settings" hidden>
+    <section id="roomSettings" class="panel" aria-labelledby="h-ajustes">
+      <header class="room-section-heading"><p class="room-eyebrow">DO SEU JEITO</p><h2 id="h-ajustes">Ajustes</h2><p>Configure os controles, o som e a sincronização deste aparelho.</p></header>
       <div class="settings">
         <div class="field">
           <label>Teclas para jogar</label>
@@ -175,21 +206,9 @@
         </div>
       </div>
     </section>
+      </section>
     </div>
-    <section class="panel" aria-labelledby="h-banda">
-      <div class="ph"><h2 id="h-banda">Banda</h2></div>
-      <div class="strips" id="strips"></div>
-      <ul class="roster" id="roster"></ul>
-      <p class="hint">Cada pessoa toca no próprio teclado ou na tela. Configure 3, 4 ou 5 teclas em Ajustes. Teclas apertadas fora de hora não descontam pontos; o erro conta quando uma nota passa sem ser completada. Segure as notas longas até o final.</p>
-    </section>
-    <section class="panel" aria-labelledby="historyTitle">
-      <div class="ph"><h2 id="historyTitle">Pontuações das rodadas anteriores</h2></div>
-      <p class="hint">Histórico compartilhado na sala (últimas 20 rodadas, enquanto ela estiver aberta).</p>
-      <p class="music-empty" id="historyEmpty">Nenhuma rodada jogada ainda.</p>
-      <div class="historywrap"><div id="historyTable" class="history-dashboard" aria-label="Histórico das rodadas"></div></div>
-    </section>
-
-    <div class="startbar full">
+    <aside class="room-session startbar" aria-labelledby="roomSessionTitle"><header><p class="room-eyebrow">A PRÓXIMA RODADA</p><h2 id="roomSessionTitle">Sua sessão</h2><p id="roomSessionIdentity" class="room-session-identity"></p></header>
       <div class="startrow">
         <p class="summary" id="summary"></p>
         <div class="row"><button class="btn" id="btnCopyInvite" type="button" hidden>Copiar convite</button><button class="btn" id="btnLeaveRoom" type="button">Trocar sala</button><button class="btn solid" id="btnReady" type="button">Estou pronto</button><button class="go" id="go" type="button">Iniciar partida</button></div>
@@ -197,7 +216,8 @@
       <div class="prog" id="progBox" hidden><i id="progFill"></i></div>
       <p class="status" id="netStatus" role="status" aria-live="polite"></p>
       <p class="status" id="progText" role="status" aria-live="polite"></p>
-    </div>
+    <div class="room-session-shortcuts"><button type="button" data-room-route="music">Escolher música</button><button type="button" data-room-route="queue">Ver fila</button></div>
+    </aside>
   </div>
 </main>
 
@@ -246,11 +266,14 @@
 <script src="/ai-client.js?v=1.3.1"></script>
 <script src="/js/demo-songs.js?v=1.4.0"></script>
 <script src="/js/room-client.js?v=1.4.0"></script>
-<script src="/js/game.js?v=1.4.0"></script>
+<script src="/js/room-ui.js?v=1.8.2"></script>
+<script src="/js/music-ui.js?v=1.8.1"></script>
+<script src="/js/chapola-haunting.js?v=2.0.9"></script>
+<script src="/js/chapola-renderer.js?v=2.0.3"></script>
+<script src="/js/chapola-stage.js?v=2.0.8"></script>
+<script src="/js/chapola-theme.js?v=2.0.8"></script>
+<script src="/js/game.js?v=2.0.8"></script>
+<script src="/js/entrance.js?v=2.0.0"></script>
 
 
-<script src="/js/redesign.js?v=1.5.0"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<script src="/js/jam-effects.js?v=5.0.0"></script>
 </body></html>

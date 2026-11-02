@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../public/js/game.js'),'utf8');
 function block(start,end){const i=html.indexOf(start),j=html.indexOf(end,i);assert.ok(i>=0&&j>i);return html.slice(i,j);}
 test('a escolha de 3, 4 ou 5 teclas redistribui notas sem pistas inválidas',()=>{
   const ctx=vm.createContext({});

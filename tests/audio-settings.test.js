@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const html = fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+const html = fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8')+'\n'+fs.readFileSync(path.join(__dirname,'../public/js/game.js'),'utf8');
 function block(start,end) {
   const a = html.indexOf(start), b = html.indexOf(end,a);
   assert.ok(a >= 0 && b>a, `Código ${start} não encontrado`);

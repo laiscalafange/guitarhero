@@ -53,8 +53,20 @@ async function prepare(c,key) {
 
 test('JavaScript da interface compila', () => {
   const html = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
-  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  assert.ok(scripts.length); for (const [, script] of scripts) new vm.Script(script);
+  const scripts = [...html.matchAll(/<script src="([^"?]+)(?:\?[^\"]*)?"><\/script>/g)];
+  assert.ok(scripts.length); for (const [, file] of scripts) new vm.Script(fs.readFileSync(path.join(__dirname,'../public',file),'utf8'));
+});
+test('avatares são compartilhados por ID permitido e imagens têm tipo correto sem expor arquivos do servidor',async()=>{
+  const a=await connect('avatars-test');
+  a.ws.send(JSON.stringify({type:'presence',data:{n:'Avatar A',avatar:'gio'}}));
+  await until(()=>a.messages.find(m=>m.type==='peers'&&m.peers.some(p=>p.presence.n==='Avatar A'&&p.presence.avatar==='gio')));
+  a.ws.send(JSON.stringify({type:'presence',data:{n:'Avatar B',avatar:'../../server.js'}}));
+  const update=await until(()=>a.messages.find(m=>m.type==='peers'&&m.peers.some(p=>p.presence.n==='Avatar B')));
+  assert.equal(update.peers.find(p=>p.presence.n==='Avatar B').presence.avatar,'gio');
+  for(const [url,type]of [['/assets/rooftop-night.png','image/png'],['/assets/avatars/chapola.jpg','image/jpeg']]){
+    const response=await fetch(base+url);assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),type);await response.arrayBuffer();
+  }
+  assert.equal((await fetch(base+'/assets/%2e%2e%2f%2e%2e%2fserver.js')).status,404);
 });
 test('dois jogadores compartilham, escolhem, recebem e removem músicas', async () => {
   const a = await connect('playlist-test'), b = await connect('playlist-test');

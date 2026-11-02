@@ -1,4 +1,6 @@
-# Guitaband — Jam na Garagem Online
+# BDSM de Garagem
+
+A versão **2.0.9** organiza a sala nas abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola tem um tema próprio em preto e vermelho, com efeitos no palco e um trecho de escuridão perto do meio da música. Os outros personagens mantêm o visual padrão. Os arquivos `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md` explicam essas alterações.
 
 Jogo de ritmo para jogar **sozinho ou com amigos pela internet**, com salas compartilhadas, músicas de exemplo, upload de áudio, biblioteca de partituras e preparação opcional de músicas por IA.
 
@@ -12,7 +14,20 @@ Jogo de ritmo para jogar **sozinho ou com amigos pela internet**, com salas comp
 6. Qualquer jogador pode adicionar/selecionar músicas; o **host** inicia a rodada e o áudio começa sincronizado para os participantes prontos.
 7. Quando o host sai ou perde a conexão, o servidor passa automaticamente o controle para o jogador que entrou primeiro entre os restantes. Se uma rodada ainda não tinha começado, o novo host poderá iniciá-la novamente.
 
-### Novas regras de partida
+### Instalar a partir do GitHub
+
+Na pasta do repositório, com Node.js 22 ou superior:
+
+```bash
+npm ci
+npm run build:ai
+npm run setup:youtube
+npm start
+```
+
+Abra **http://localhost:3000**. O comando `setup:youtube` instala o programa usado na importação do YouTube; pode ser omitido para testar apenas exemplos, uploads e partituras. Ele exige acesso à internet. A análise por IA continua sendo feita no navegador.
+
+### Regras de partida
 
 - Cada participante escolhe **3, 4 ou 5 teclas** em Ajustes. Os outros jogadores podem escolher valores diferentes.
 - Depois de receber a música, cada um clica em **Estou pronto**. O **host** só consegue começar quando todos os participantes ativos estiverem prontos. Alterar instrumento, dificuldade, teclas ou música cancela o pronto.
@@ -42,7 +57,9 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 
 - `server.js`: servidor HTTP e WebSocket, salas e início das rodadas.
 - `music-service.js`, `analysis-service.js`, `chart-catalog.js`, `imported-chart.js`, `youtube.js`: serviços de áudio, análises e catálogo.
-- `public/index.html`: interface e lógica do jogo; mantido junto para evitar quebrar controles e testes já existentes.
+- `public/index.html`: estrutura da interface.
+- `public/js/game.js` e `public/js/room-client.js`: jogo, controles e conexão com a sala.
+- `public/js/chapola-*.js` e `public/css/chapola-theme.css`: apresentação exclusiva do Chapola, incluindo palco e escuridão.
 - `public/*.js`, `public/vendor/`, `public/models/`: clientes, workers de IA, bibliotecas e modelo de notas usados pelo navegador.
 - `src/`, `scripts/`: código-fonte e tarefas para recompilar os bundles.
 - `tests/`: testes automatizados.
@@ -64,6 +81,6 @@ npm run build
 npm test
 ```
 
-Se alterar somente `public/index.html` ou `server.js`, não precisa recompilar os workers. Se alterar arquivos de `src/`, execute `npm run build` antes de publicar.
+Se alterar a interface, os temas ou `server.js`, não precisa recompilar os workers. Se alterar arquivos de `src/`, execute `npm run build` antes de publicar.
 
 **Limites atuais:** até 8 pessoas por sala; até 10 músicas por playlist; arquivo de áudio de até 25 MB. Músicas não são gravadas permanentemente. Prefira Chrome ou Edge atualizado no computador.
