@@ -1,6 +1,8 @@
 # BDSM de Garagem
 
-A versão **2.0.9** organiza a sala nas abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola tem um tema próprio em preto e vermelho, com efeitos no palco e um trecho de escuridão perto do meio da música. Os outros personagens mantêm o visual padrão. Os arquivos `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md` explicam essas alterações.
+A versão **2.1.0** acrescenta à Johgi um tema tropical exclusivo: pôr do sol, hibiscos, painéis de quadrinhos e efeitos no palco. Ele funciona somente quando Johgi está selecionada, mantendo o tema do Chapola e o visual padrão dos demais. Veja `JOHGI-TEMA-2.1.0.md` para entender a implementação e desfazê-la.
+
+A sala mantém as abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola mantém o tema em preto e vermelho e o trecho de escuridão descritos em `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md`.
 
 Jogo de ritmo para jogar **sozinho ou com amigos pela internet**, com salas compartilhadas, músicas de exemplo, upload de áudio, biblioteca de partituras e preparação opcional de músicas por IA.
 
@@ -60,6 +62,7 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 - `public/index.html`: estrutura da interface.
 - `public/js/game.js` e `public/js/room-client.js`: jogo, controles e conexão com a sala.
 - `public/js/chapola-*.js` e `public/css/chapola-theme.css`: apresentação exclusiva do Chapola, incluindo palco e escuridão.
+- `public/js/johgi-*.js` e `public/css/johgi-theme.css`: apresentação exclusiva da Johgi; usa os mesmos dados de desenho e preserva o restante do jogo.
 - `public/*.js`, `public/vendor/`, `public/models/`: clientes, workers de IA, bibliotecas e modelo de notas usados pelo navegador.
 - `src/`, `scripts/`: código-fonte e tarefas para recompilar os bundles.
 - `tests/`: testes automatizados.
