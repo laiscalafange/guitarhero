@@ -1,6 +1,6 @@
 # BDSM de Garagem
 
-A versão **2.1.0** acrescenta à Johgi um tema tropical exclusivo: pôr do sol, hibiscos, painéis de quadrinhos e efeitos no palco. Ele funciona somente quando Johgi está selecionada, mantendo o tema do Chapola e o visual padrão dos demais. Veja `JOHGI-TEMA-2.1.0.md` para entender a implementação e desfazê-la.
+A versão **2.1.1** ajusta o tema da Johgi para laranja queimado mais intenso, escuro e translúcido, com texto claro. Mantém pôr do sol, hibiscos, painéis de quadrinhos e efeitos no palco. Ele funciona somente quando Johgi está selecionada, mantendo o tema do Chapola e o visual padrão dos demais. Veja `JOHGI-TEMA-2.1.0.md` para a estrutura do tema e `JOHGI-CORES-2.1.1.md` para este ajuste e como desfazê-lo.
 
 A sala mantém as abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola mantém o tema em preto e vermelho e o trecho de escuridão descritos em `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md`.
 
