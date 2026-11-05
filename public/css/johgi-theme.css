@@ -1,0 +1,272 @@
+body.theme-johgi,.avatar-dialog[data-character=gio]{--johgi-flower:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNjAgMTYwIj4KICA8ZyBzdHJva2U9IiM1NDIxMzciIHN0cm9rZS13aWR0aD0iMy41IiBzdHJva2UtbGluZWpvaW49InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik03MiAxMDlRMTggMTQ2IDE4IDk2US0xIDYwIDQ5IDYxUTE4IDE3IDU5IDE1UTg4LTQgOTUgNDhRMTM5IDEyIDE0NSA1NFExNjUgODggMTE0IDkyUTE1MyAxMjkgMTEzIDE0NVE3OSAxNjQgNzIgMTA5WiIgZmlsbD0iI2ZmODM2OSIvPgogICAgPHBhdGggZD0iTTc4IDgxUTM5IDU4IDQ5IDI4TTc4IDgxUTEwOCA1NSAxMzAgNTBNNzggODFRMTE0IDg5IDEzOCAxMTFNNzggODFROTYgMTE2IDkyIDEzN003OCA4MVE0MyAxMDggMjQgOTEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmY2U3OCIgc3Ryb2tlLXdpZHRoPSI2Ii8+CiAgICA8cGF0aCBkPSJNNzggODRRODkgNTggMTE5IDMyIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmU5YWQiIHN0cm9rZS13aWR0aD0iNyIvPgogICAgPHBhdGggZD0iTTEwNCA0NEwxMDAgMjlNMTEwIDM4TDEyMyA0M00xMTYgMzNMMTE2IDIwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYwYzUiIHN0cm9rZS13aWR0aD0iMyIvPgogICAgPGNpcmNsZSBjeD0iNzgiIGN5PSI4MyIgcj0iMTAiIGZpbGw9IiNiNzJkNGQiLz4KICAgIDxjaXJjbGUgY3g9IjEwMCIgY3k9IjI4IiByPSI0IiBmaWxsPSIjZmZkMDVhIi8+PGNpcmNsZSBjeD0iMTI0IiBjeT0iNDMiIHI9IjQiIGZpbGw9IiNmZmQwNWEiLz48Y2lyY2xlIGN4PSIxMTYiIGN5PSIxOSIgcj0iNCIgZmlsbD0iI2ZmZDA1YSIvPgogIDwvZz4KPC9zdmc+Cg==")}
+/* Johgi: pôr do sol, hibiscos e quadrinhos. Sem regras globais para outros avatares. */
+#johgiRoomMast{display:none}
+body.theme-johgi{
+  --bg:#321b2c;--panel:#fff2d6;--panel2:#ffe1b1;--line:#9e5b4a;--ink:#482334;
+  --muted:#805044;--dim:#986b5a;--f-display:'Bangers','Big Shoulders Display',sans-serif;
+  --johgi-ink:#4e2438;--johgi-orange:#ff9442;--johgi-pink:#e34372;--johgi-paper:#fff3d7;
+  color:var(--ink);background:#321b2c;color-scheme:light;
+}
+.theme-johgi #setup{
+  --room-bg:#fff1d0;--room-surface:#fff6e3;--room-raised:#ffe0b2;--room-border:#c08163;
+  --room-text:#482334;--room-muted:#805044;--room-accent:#a72e50;--room-success:#26684e;
+  --room-danger:#ad2544;--room-radius:9px;position:relative;z-index:1;
+}
+body.theme-johgi:not(.at-entrance):before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:linear-gradient(#57223650,#351d2be0),url('/assets/johgi/sunset-palm.jpg') center/cover no-repeat;
+}
+.theme-johgi .entrance-scene,.theme-johgi.at-entrance .entrance-scene{
+  background-image:url('/assets/johgi/sunset-beach.jpg');background-position:center;background-size:cover;
+}
+.theme-johgi.at-entrance .entrance-scene:after{
+  background:linear-gradient(0deg,#4e19376b,transparent 65%),linear-gradient(90deg,#51203c40,transparent 60%);
+}
+.theme-johgi .title-screen{filter:drop-shadow(0 7px 0 #4e24385c)}
+.theme-johgi .title-screen:before{
+  content:'JOHGI / LADO SOL';color:#fff1bd;font:500 11px var(--f-mono);letter-spacing:.3em;
+  padding:9px 16px;margin-bottom:20px;background:#6c2342;border:2px solid #f4a96c;transform:rotate(-4deg);
+}
+.theme-johgi .online-badge{background:#fff0c5;color:#6c2841;border:2px solid #55233a;box-shadow:4px 4px #6c2841;border-radius:4px}
+.theme-johgi .game-title{
+  font-family:'Bangers',sans-serif;color:#fff4cc;transform:rotate(-4deg);letter-spacing:.025em;
+  -webkit-text-stroke:1px #58273b;text-shadow:3px 4px #59263b,6px 7px #ee5078,9px 11px #59263b;
+}
+.theme-johgi .game-title>span:last-child{color:#ffd177;text-shadow:3px 4px #59263b,6px 7px #f9665a,9px 11px #59263b}
+.theme-johgi .start-button{
+  background:#ffce6d;color:#55233a;border:3px solid #55233a;border-radius:9px;
+  box-shadow:5px 6px #71334a,inset 0 3px #fff3bd;font-family:'Bangers',sans-serif;letter-spacing:.12em;
+}
+.theme-johgi .start-button:hover{background:#ffe5a0;transform:translateY(-3px) rotate(-2deg)}
+.theme-johgi.at-entrance #roomPanel{
+  background:linear-gradient(140deg,#fff8e9f7,#ffebc9f7);border:3px solid #5a2b3d;border-radius:15px;
+  box-shadow:7px 8px #6d2a45,0 24px 70px #52243960;position:relative;
+}
+.theme-johgi.at-entrance #roomPanel:before{
+  content:'';position:absolute;top:-35px;right:-28px;width:85px;height:85px;
+  background:var(--johgi-flower) center/contain no-repeat;transform:rotate(18deg);pointer-events:none;
+}
+.theme-johgi .avatar-teaser{background:#ffdec0;border:2px solid #af695c;color:#55283c;border-radius:10px;box-shadow:3px 3px #d58c6d}
+.theme-johgi .avatar-teaser small,.theme-johgi .ticket-label{color:#9c3652}
+.theme-johgi .avatar-teaser-image{background:#ffe9b4;border:2px solid #ad5d57}
+.theme-johgi .avatar-teaser-image img{mix-blend-mode:normal}
+.theme-johgi .avatar-arrow{color:#b7355e}.theme-johgi .avatar-teaser-sub{color:#85534d}
+.theme-johgi .roomrow label{color:#693343}.theme-johgi .roomrow input{background:#fff8e8;color:#4e2438;border:1px solid #c47c67;border-radius:6px}
+.theme-johgi .room-code-input{background:#fff8e8;border:1px solid #c47c67}
+.theme-johgi.at-entrance .room-code-input .btn{background:#ffdfb7;color:#85364f;border:1px solid #bc7a69;border-radius:4px;font-weight:700}
+.theme-johgi .roomrow input::placeholder{color:#95645f}
+.theme-johgi .entry-divider{color:#89534e}.theme-johgi .entry-divider:before,.theme-johgi .entry-divider:after{background:#d9a183}
+.theme-johgi.at-entrance .roomrow>.btn{font-family:var(--f-body);font-weight:700;border:2px solid #71364a;border-radius:7px;background:#ffe3b5;color:#5b2940;box-shadow:2px 3px #b76e61}
+.theme-johgi.at-entrance #roomPanel .roomrow>.btn.solid{background:#b9355c;color:#fff3da;border:2px solid #6c2742;box-shadow:3px 4px #6c2742}
+.theme-johgi .entry-footnote{color:#8a5751}.theme-johgi .back-to-start,.theme-johgi .credits-button{color:#fff2d0;background:#692b43e8;border:1px solid #ffbc83;box-shadow:2px 2px #421c31}
+.theme-johgi .entrance-footer{color:#fff0c5;text-shadow:1px 2px #5d2842}
+.theme-johgi .entrance-footer i{color:#ffd079}
+.theme-johgi:not(.at-entrance) #johgiRoomMast{
+  display:flex;align-items:center;gap:22px;min-height:174px;margin:-5px 0 24px;padding:22px 32px;
+  border:3px solid #59273b;border-radius:12px;box-shadow:6px 6px #3a1d2b;position:relative;overflow:hidden;
+  background:linear-gradient(90deg,#ffe9b8fa,#ffdeabf0 56%,#f29b6860),url('/assets/johgi/sunset-beach.jpg') center 52%/cover;
+}
+#johgiRoomMast:after{content:'';position:absolute;right:175px;bottom:-28px;width:145px;height:145px;background:var(--johgi-flower) center/contain no-repeat;opacity:.65;transform:rotate(16deg);pointer-events:none}
+.johgi-mast-portrait{width:105px;height:120px;flex-shrink:0;background:#ffe6b8 url('/assets/avatars/johgi-face-v2.png') center/cover;border:3px solid #71364a;border-radius:10px;box-shadow:4px 4px #e58276;transform:rotate(-5deg)}
+.johgi-mast-copy{flex:1;min-width:0;z-index:1}.johgi-kicker{font:500 9px var(--f-mono);letter-spacing:.2em;color:#9e3651}
+.johgi-mast-copy h2{font:400 77px/.98 'Bangers',sans-serif;color:#672e45;margin:4px 0 6px;letter-spacing:.035em;text-shadow:2px 3px #fff0cb}
+.johgi-mast-copy h2 span{display:inline-block;font-size:42px;vertical-align:middle;color:#df4a6c;margin-left:18px;transform:rotate(12deg)}
+.johgi-mast-copy p{font:600 13px var(--f-body);color:#815047}
+.johgi-mast-stamp{flex-shrink:0;position:relative;z-index:1;width:128px;height:128px;display:grid;place-content:center;text-align:center;gap:4px;transform:rotate(8deg);border:2px dashed #8a3b50;border-radius:50%;background:#fff0c8c9;color:#8c3850}
+.johgi-mast-stamp span{font:8px var(--f-mono);letter-spacing:.13em}.johgi-mast-stamp strong{font:24px/.95 'Bangers',sans-serif;letter-spacing:.025em}.johgi-mast-stamp i{font-style:normal;font-size:22px}
+.theme-johgi:not(.at-entrance) .room-header{background:#fff1d9f7;border:2px solid #6a3043;border-bottom:4px solid #cc4b65;box-shadow:0 5px #3f2034;border-radius:9px}
+.theme-johgi .room-header .wordmark{color:#642a42;font-family:'Bangers',sans-serif;font-size:24px;letter-spacing:.035em}
+.theme-johgi .room-header .brand-pick{background:#c54365;color:#fff4cc;border-radius:50% 50% 50% 10%;transform:rotate(-8deg)}
+.theme-johgi .room-tabs [role=tab]{font-weight:700;border-radius:7px;color:#865044;border:1px solid transparent}
+.theme-johgi .room-tabs [role=tab]:hover{background:#ffe4bb;color:#63263e}
+.theme-johgi .room-tabs [role=tab][aria-selected=true]{background:#a83155;color:#fff2d4;border-color:#69273f;box-shadow:2px 3px #682b42}
+.theme-johgi .room-tabs [role=tab]>span{background:#ffe8b5;color:#6b2a44}
+.theme-johgi .room-profile-button{color:#71364a}.theme-johgi .room-profile-button img{border:2px solid #c66b64;background:#ffdcac}
+.theme-johgi .room-settings-button{background:#ffdfa9;color:#763349;border:1px solid #bb775f;border-radius:50%;box-shadow:2px 2px #d68c71}
+.theme-johgi .room-view>.panel,.theme-johgi .room-view>.room-queue-area{
+  background:linear-gradient(140deg,#fff8e8f7,#fff0d4fa);border:2px solid #7b3c4d;border-radius:10px;
+  box-shadow:5px 6px #3d2034;position:relative;
+}
+.theme-johgi .room-section-heading,.theme-johgi .music-room-header{border-bottom:1px solid #dba17d}
+.theme-johgi .room-section-heading h2,.theme-johgi .music-room-header h2,.theme-johgi .room-queue-area h2,.theme-johgi .room-session h2{font:400 34px/1 'Bangers',sans-serif;letter-spacing:.04em;color:#783149}
+.theme-johgi .room-eyebrow,.theme-johgi .music-eyebrow{color:#a43c56}
+.theme-johgi .room-session.startbar{border:2px solid #753149;border-top:5px solid #da5270;background:linear-gradient(145deg,#ffedc7f7,#ffd5aff5);box-shadow:4px 5px #3d2034;border-radius:10px}
+.theme-johgi .room-layout .btn,.theme-johgi .room-layout .toggle{border-radius:6px;font-weight:700}
+.theme-johgi .room-layout .btn.solid,.theme-johgi .room-session .go{background:#ae3155;border:2px solid #67213d;color:#fff2d3;box-shadow:2px 3px #762842;border-radius:7px}
+.theme-johgi .room-session .go{font:400 25px 'Bangers',sans-serif;letter-spacing:.04em}
+.theme-johgi .room-layout .btn:hover:not(:disabled){filter:brightness(1.04);transform:translateY(-1px)}
+.theme-johgi #roomBand .strip{background:linear-gradient(115deg,#ffe5be,#fff5de);border:1px solid #cc906e;border-left:4px solid var(--acc,#d95c72);border-radius:8px;box-shadow:2px 3px #e6b493}
+.theme-johgi #roomBand .strip .pname{color:#87324c;font-family:'Bangers',sans-serif;letter-spacing:.025em}
+.theme-johgi #roomBand .instr button,.theme-johgi #roomBand .seg button{background:#fff5df;border-color:#d49b7d;color:#734349;border-radius:5px}
+.theme-johgi #roomBand .instr button[aria-checked=true]{background:#ffdfb5;border-color:#8e4557;color:#59243b;box-shadow:inset 0 -3px var(--c)}
+.theme-johgi #roomBand .seg button[aria-checked=true]{background:#f9c69f;color:#55273b;border-color:#b26161}
+.theme-johgi .roster li{background:#ffe6c6;border-color:#cf9a7c;color:#683347}.theme-johgi .roster em{color:#86584d}
+.theme-johgi .music-room{
+  --music-bg:#fff7e7;--music-surface:#ffedcf;--music-raised:#ffdfb4;--music-border:#d09a7e;
+  --music-text:#51283c;--music-muted:#80514c;--music-accent:#a72d53;--music-success:#267052;--music-error:#b02b49;
+  --music-radius:8px;--music-shadow:2px 3px #9e614c13;
+}
+.theme-johgi .music-current{background:linear-gradient(110deg,#ffe0b0,#fff2d8);border:1px solid #c58c68;border-left:5px solid #cf4a67;border-radius:8px}
+.theme-johgi .music-current-symbol{color:#963453;background:linear-gradient(#fff3d1a8,#fff3d1d9),url('/assets/johgi/tropical-waves.jpg') center/cover;border:2px solid #bc6b64;border-radius:50% 50% 8px 8px;box-shadow:2px 2px #e4ae87}
+.theme-johgi .music-current h3{font-family:'Bangers',sans-serif;letter-spacing:.03em;font-size:27px}
+.theme-johgi .music-room .music-card{border:1px solid #ce9474;background:#fff8e8;border-radius:8px}
+.theme-johgi .music-room .music-card-heading h3,.theme-johgi .chart-browser-heading h3,.theme-johgi .chart-group h4{font-family:'Bangers',sans-serif;letter-spacing:.035em;color:#81354c}
+.theme-johgi .music-room .tabs{background:#ffe3bd;border:1px solid #d29c77;border-radius:8px}
+.theme-johgi .music-room .tab[aria-selected=true]{background:#aa3456;border-color:#722c43;color:#fff5da;box-shadow:1px 2px #77344b}
+.theme-johgi .music-room .demo{background:#fff2d8;border-color:#d4a183;box-shadow:2px 2px #e7bc9d}
+.theme-johgi .music-room .demo[aria-checked=true]{background:#ffddb3;border:2px solid #a8425a}
+.theme-johgi .music-room .music-row.selected{background:#eaf0cf;border-color:#558466}
+.theme-johgi .music-room .drop{border-style:dashed;background:linear-gradient(#fff4dcdf,#fff0d2e8),url('/assets/johgi/hibiscus-paper.jpg') center/cover}
+.theme-johgi .music-room .drop strong{color:#923953}
+.theme-johgi .chart-group,.theme-johgi .chart-browser-heading{background:#fff3db;border-color:#d1a07e;color:#6d3b49}
+.theme-johgi .chart-match{background:#fff4db;color:#895542;border-color:#c29474}
+.theme-johgi .chart-match[data-match=probable]{background:#f7e9b9;color:#775423;border-color:#c9ab61}
+.theme-johgi .room-settings-group{border:1px solid #cb987c;background:#fff5e0;border-radius:8px}
+.theme-johgi .room-settings-group legend{font-family:'Bangers',sans-serif;font-size:23px;letter-spacing:.03em;color:#913651}
+.theme-johgi .room-settings-fields select,.theme-johgi .room-settings-fields input{color:#633249;accent-color:#bd3e60}
+.theme-johgi .room-help{background:#ffefd2;border-color:#d6a17f}.theme-johgi .room-help summary{color:#7e3d4c}
+.theme-johgi #roomHistory .tablewrap{background:#fff4dc;border-color:#d2a080;border-radius:6px}
+.theme-johgi th,.theme-johgi td{border-color:#d8a487}.theme-johgi th{color:#984359}
+.theme-johgi .credits-dialog,.theme-johgi .room-profile-dialog,.theme-johgi .all-charts-dialog{
+  background:#fff2d8;color:#5a2a40;border:3px solid #723249;border-radius:12px;box-shadow:6px 7px #422034;
+}
+.theme-johgi dialog::backdrop{background:#4a2038af;backdrop-filter:blur(4px)}
+.theme-johgi .credits-dialog h2,.theme-johgi .room-profile-dialog h2,.theme-johgi .all-charts-dialog h2{font-family:'Bangers',sans-serif;letter-spacing:.04em;color:#a23759}
+.theme-johgi .credits-dialog p{color:#885450}.theme-johgi .credits-dialog .dialog-close{color:#8c3651}
+.theme-johgi .room-profile-dialog input{background:#fff9e9;color:#542b3e;border-color:#c68f76}
+.theme-johgi .room-profile-dialog .btn{background:#ffe0b3;border-color:#b97869;color:#6c3047}
+.theme-johgi .room-profile-dialog .btn.solid{background:#aa3455;color:#fff2d0;border-color:#763047}
+.theme-johgi .room-profile-dialog header button{background:#ffdfb5;color:#88394e;border-color:#b87569}
+.avatar-dialog[data-character=gio]{
+  --theme-bg:#ffe1b4;--theme-deep:#6c2b43;--theme-accent:#a52e53;--theme-secondary:#e16b70;
+  --theme-paper:#ffe6b8;--theme-ink:#5a2940;--character-color:#df5e70;
+  background:linear-gradient(140deg,#fff6dff7,#ffddaff7);border:3px solid #78364d;border-radius:12px;box-shadow:7px 8px #422139;color-scheme:light;
+}
+.avatar-dialog[data-character=gio] .character-art{border:2px solid #834051;border-radius:9px;background:#ffe1ac url('/assets/johgi/sunset-palm.jpg') center/cover;box-shadow:5px 5px #d6766c}
+.avatar-dialog[data-character=gio] .character-art>img{mix-blend-mode:normal;filter:drop-shadow(5px 3px #5f254a33);border-radius:6px}
+.avatar-dialog[data-character=gio] .character-art:before{background:#ffd780;opacity:.08}
+.avatar-dialog[data-character=gio] .character-art:after{content:'';position:absolute;bottom:18px;right:8px;width:92px;height:92px;background:var(--johgi-flower) center/contain no-repeat;pointer-events:none;transform:rotate(15deg)}
+.avatar-dialog[data-character=gio] .character-info h3{font-family:'Bangers',sans-serif;font-size:56px;letter-spacing:.04em;color:#a33155}
+.avatar-dialog[data-character=gio] .character-info>.btn.solid{color:#fff1d0;background:#b83d5f;border-color:#762a44;box-shadow:3px 4px #763049}
+.avatar-dialog[data-character=gio] .character-option.is-current{background:#ffeec6;color:#91364f;border-color:#aa3c5d}
+.avatar-dialog[data-character=gio] .character-issue{color:#fff1cd;background:#753448e8;padding:4px 7px;border-radius:3px}
+.avatar-dialog[data-character=gio] .dialog-close{background:#ffe2b4;color:#713148}
+.theme-johgi #stage{background:#321c32}.theme-johgi .hud{background:linear-gradient(#3d2036ed,#51253965,transparent);padding-bottom:12px}
+.theme-johgi .hbtn{background:#fff1d5;color:#723047;border:2px solid #79384c;border-radius:7px;font-weight:700;box-shadow:2px 3px #3b1a2c}
+.theme-johgi .hud-song b{font-family:'Bangers',sans-serif;font-size:19px;color:#fff0cc;letter-spacing:.07em;text-shadow:2px 2px #6c2845}
+.theme-johgi .hud-song span,.theme-johgi .hud-time{color:#ffdfb2}
+.theme-johgi .hprog{background:#52243a;height:5px;border-bottom:1px solid #c45a67}.theme-johgi .hprog i{background:linear-gradient(90deg,#f76b67,#ffb248,#ffe7a1)}
+.theme-johgi .sheet{background:#492238b0;backdrop-filter:blur(5px)}
+.theme-johgi .sheet-box{box-sizing:border-box;background:linear-gradient(140deg,#fff7e5,#ffe3ba);color:#5b2a3f;border:3px solid #78354d;border-top:7px solid #e36376;border-radius:13px;box-shadow:7px 8px #402035;position:relative}
+.theme-johgi .sheet-box:after{content:'';position:absolute;right:14px;top:-20px;width:68px;height:68px;background:var(--johgi-flower) center/contain no-repeat;pointer-events:none;transform:rotate(14deg)}
+.theme-johgi .sheet-box h2{font-family:'Bangers',sans-serif;font-weight:400;letter-spacing:.04em;color:#a03557}
+.theme-johgi .sheet-box>*{min-width:0;max-width:100%}.theme-johgi .sheet-box .tablewrap{min-width:0;width:100%;overflow-x:auto}
+.theme-johgi .sheet-box .sub,.theme-johgi .sheet-box .music-meta,.theme-johgi .sheet-box label{color:#86534f}
+.theme-johgi .sheet-box .btn{color:#76334b;border:2px solid #b36b68;background:#ffdda9;border-radius:7px;box-shadow:2px 3px #d28a75;font-weight:700}
+.theme-johgi .sheet-box .btn.solid{background:#ae3559;color:#fff2d4;border-color:#78304b;box-shadow:2px 3px #78304b}
+.theme-johgi .sheet-box input{accent-color:#b93e62}.theme-johgi .sheet-box th{color:#a34558}
+.theme-johgi :focus-visible{outline:3px solid #af3157;outline-offset:3px}
+@media(max-width:900px){
+  .theme-johgi .room-header .wordmark{font-size:20px}.theme-johgi:not(.at-entrance) #johgiRoomMast{padding:20px;gap:17px;min-height:145px}
+  .johgi-mast-portrait{width:84px;height:99px}.johgi-mast-copy h2{font-size:62px}.johgi-mast-stamp{width:102px;height:102px}.johgi-mast-stamp strong{font-size:21px}
+  #johgiRoomMast:after{right:100px;width:120px;height:120px;opacity:.35}
+}
+@media(max-width:560px){
+  .theme-johgi .game-title{font-size:clamp(65px,18vw,100px)}.theme-johgi .title-screen:before{font-size:8px;letter-spacing:.2em;margin-bottom:15px}
+  .theme-johgi.at-entrance #roomPanel:before{width:60px;height:60px;top:-28px;right:-8px}
+  .theme-johgi .room-header .wordmark{font-size:17px}.theme-johgi .room-tabs [role=tab]{font-size:12px}
+  .theme-johgi:not(.at-entrance) #johgiRoomMast{padding:15px;gap:13px;margin-bottom:18px;min-height:125px}
+  .johgi-mast-portrait{width:66px;height:80px}.johgi-mast-copy h2{font-size:47px}.johgi-mast-copy h2 span{font-size:25px;margin-left:10px}
+  .johgi-mast-copy p{font-size:11px}.johgi-kicker{font-size:7px;letter-spacing:.07em}.johgi-mast-stamp{width:65px;height:65px;gap:2px}
+  .johgi-mast-stamp strong{font-size:16px}.johgi-mast-stamp span{font-size:6px}.johgi-mast-stamp i{display:none}
+  #johgiRoomMast:after{right:10px;width:110px;height:110px;opacity:.18}
+  .theme-johgi .room-section-heading h2,.theme-johgi .music-room-header h2{font-size:30px}
+  .avatar-dialog[data-character=gio] .character-info h3{font-size:44px}.avatar-dialog[data-character=gio] .character-art:after{width:65px;height:65px}
+  .theme-johgi .sheet-box:after{width:60px;height:60px;right:10px;top:-20px}
+}
+@media(prefers-reduced-motion:reduce){.theme-johgi *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Paleta 2.1.1: laranja queimado translúcido, com texto claro para contraste. */
+body.theme-johgi,.avatar-dialog[data-character=gio]{
+  --johgi-glass:linear-gradient(140deg,#9b350bc9,#491706e3);
+  --johgi-surface:#7b280bb8;--johgi-raised:#b6420ac4;--johgi-deep:#351308d6;
+  --johgi-border:#ed854b8c;--johgi-text:#fff0da;--johgi-muted:#f0b58d;--johgi-heading:#ffd0a0;
+  color-scheme:dark;
+}
+body.theme-johgi{--panel:var(--johgi-surface);--panel2:var(--johgi-raised);--line:var(--johgi-border);--ink:var(--johgi-text);--muted:var(--johgi-muted);--dim:#d38b5e}
+.theme-johgi #setup{
+  --room-bg:var(--johgi-deep);--room-surface:var(--johgi-surface);--room-raised:var(--johgi-raised);
+  --room-border:var(--johgi-border);--room-text:var(--johgi-text);--room-muted:var(--johgi-muted);
+  --room-accent:#ffb270;--room-success:#c7e6a5;--room-danger:#ffb3a1;
+}
+.theme-johgi .music-room{
+  --music-bg:var(--johgi-deep);--music-surface:var(--johgi-surface);--music-raised:var(--johgi-raised);
+  --music-border:var(--johgi-border);--music-text:var(--johgi-text);--music-muted:var(--johgi-muted);
+  --music-accent:#ffb270;--music-success:#c7e6a5;--music-error:#ffb3a1;
+}
+.theme-johgi.at-entrance #roomPanel,.theme-johgi:not(.at-entrance) .room-header,
+.theme-johgi .room-view>.panel,.theme-johgi .room-view>.room-queue-area,.theme-johgi .room-session.startbar,
+.theme-johgi .credits-dialog,.theme-johgi .room-profile-dialog,.theme-johgi .all-charts-dialog,.theme-johgi .sheet-box{
+  background:var(--johgi-glass);color:var(--johgi-text);border-color:#e47b438f;
+  box-shadow:5px 6px #2c0e08ab,inset 0 1px #ffb36d26;backdrop-filter:blur(10px);
+}
+.theme-johgi:not(.at-entrance) #johgiRoomMast{background:linear-gradient(90deg,#6b220bda,#963108b8 56%,#54200b8a),url('/assets/johgi/sunset-beach.jpg') center 52%/cover;border-color:var(--johgi-border)}
+.theme-johgi .johgi-mast-stamp{background:#7a260bc4;border-color:#f19858;color:var(--johgi-text)}
+.theme-johgi .johgi-mast-copy h2{color:#ffca92;text-shadow:2px 3px #54200c}.theme-johgi .johgi-mast-copy h2 span{color:#ff8c45}
+.theme-johgi .johgi-mast-copy p,.theme-johgi .johgi-kicker{color:var(--johgi-muted)}
+.theme-johgi .avatar-teaser,.theme-johgi #roomBand .strip,.theme-johgi .roster li,
+.theme-johgi .music-room .music-card,.theme-johgi .music-current,.theme-johgi .music-room .demo,
+.theme-johgi .chart-group,.theme-johgi .chart-browser-heading,.theme-johgi .room-settings-group,
+.theme-johgi .room-help,.theme-johgi #roomHistory .tablewrap{
+  background:var(--johgi-surface);color:var(--johgi-text);border-color:var(--johgi-border);box-shadow:2px 3px #38120570;
+}
+.theme-johgi .music-room .tabs{background:#4e190ab8;border-color:var(--johgi-border)}
+.theme-johgi .music-current-symbol{background:linear-gradient(#7a2306b3,#53200ccf),url('/assets/johgi/tropical-waves.jpg') center/cover;color:#ffc58e;border-color:#ed854b8c}
+.theme-johgi .music-room .drop{background:linear-gradient(#6b230bd9,#451807eb),url('/assets/johgi/hibiscus-paper.jpg') center/cover}
+.theme-johgi .music-room .demo[aria-checked=true],.theme-johgi .music-room .music-row.selected{background:#a3370bc7;border-color:#f39d5d}
+.theme-johgi .room-header .wordmark,.theme-johgi .room-profile-button,.theme-johgi .room-tabs [role=tab],
+.theme-johgi .avatar-teaser,.theme-johgi .roomrow label,.theme-johgi #roomBand .strip .pname,
+.theme-johgi .room-section-heading h2,.theme-johgi .music-room-header h2,.theme-johgi .room-queue-area h2,
+.theme-johgi .room-session h2,.theme-johgi .music-room .music-card-heading h3,.theme-johgi .chart-group h4,
+.theme-johgi .chart-browser-heading h3,.theme-johgi .room-settings-group legend,.theme-johgi .room-help summary,
+.theme-johgi .credits-dialog h2,.theme-johgi .room-profile-dialog h2,.theme-johgi .all-charts-dialog h2,
+.theme-johgi .sheet-box h2,.theme-johgi .music-room .drop strong{color:var(--johgi-heading)}
+.theme-johgi .avatar-teaser small,.theme-johgi .ticket-label,.theme-johgi .avatar-arrow,
+.theme-johgi .room-eyebrow,.theme-johgi .music-eyebrow,.theme-johgi .entry-divider,
+.theme-johgi .avatar-teaser-sub,.theme-johgi .entry-footnote,.theme-johgi .roster em,
+.theme-johgi .credits-dialog p,.theme-johgi .sheet-box .sub,.theme-johgi .sheet-box .music-meta,
+.theme-johgi .sheet-box label{color:var(--johgi-muted)}
+.theme-johgi .roomrow input,.theme-johgi .room-code-input,.theme-johgi .room-profile-dialog input,
+.theme-johgi .room-settings-fields select,.theme-johgi .room-settings-fields input{
+  background:var(--johgi-deep);color:var(--johgi-text);border-color:var(--johgi-border);accent-color:#ed7b2d;
+}
+.theme-johgi .roomrow input::placeholder{color:#e3ae87}
+.theme-johgi.at-entrance .roomrow>.btn,.theme-johgi.at-entrance .room-code-input .btn,
+.theme-johgi .room-profile-dialog .btn,.theme-johgi .room-profile-dialog header button,
+.theme-johgi .room-settings-button,.theme-johgi .hbtn,.theme-johgi .sheet-box .btn,
+.theme-johgi #roomBand .instr button,.theme-johgi #roomBand .seg button{
+  background:#8f2d0bc4;color:var(--johgi-text);border-color:#ea824b99;box-shadow:2px 3px #30100785;
+}
+.theme-johgi .room-layout .btn.solid,.theme-johgi .room-session .go,.theme-johgi.at-entrance #roomPanel .roomrow>.btn.solid,
+.theme-johgi .room-profile-dialog .btn.solid,.theme-johgi .sheet-box .btn.solid,
+.theme-johgi .room-tabs [role=tab][aria-selected=true],.theme-johgi .music-room .tab[aria-selected=true],
+.theme-johgi #roomBand .instr button[aria-checked=true],.theme-johgi #roomBand .seg button[aria-checked=true]{
+  background:linear-gradient(135deg,#c84c0dda,#8d2909e8);color:#fff1de;border-color:#ffab64bb;box-shadow:2px 3px #491708a8;
+}
+.theme-johgi .room-tabs [role=tab]:hover{background:#a43a0cbf;color:#fff0da}
+.theme-johgi .online-badge,.theme-johgi .start-button{background:#a83b0bd9;color:#fff0da;border-color:#ea854a;box-shadow:4px 5px #431708b3}
+.theme-johgi .start-button:hover{background:#c7500fdc}
+.theme-johgi .room-tabs [role=tab]>span,.theme-johgi .chart-match{background:#4a190bd4;color:#ffc797;border-color:#c77843}
+.theme-johgi .chart-match[data-match=probable]{background:#85410cc9;color:#ffdfad;border-color:#df9853}
+.theme-johgi .entry-divider:before,.theme-johgi .entry-divider:after{background:#c9764080}
+.theme-johgi th,.theme-johgi .sheet-box th{color:#ffc797}.theme-johgi th,.theme-johgi td{border-color:#c8754573}
+.theme-johgi .credits-dialog .dialog-close{color:#ffca9a}
+.theme-johgi :focus-visible{outline-color:#ffb36d}
+.avatar-dialog[data-character=gio]{
+  --theme-bg:#84300cbf;--theme-deep:#411609;--theme-accent:#ffc08b;--theme-secondary:#d76420;
+  --theme-paper:#a34a1c;--theme-ink:#fff0db;--character-color:#eb8b45;
+  background:var(--johgi-glass);color:var(--johgi-text);border-color:#e1874d99;backdrop-filter:blur(10px);
+}
+.avatar-dialog[data-character=gio] .character-info h3{color:#ffd1a6}
+.avatar-dialog[data-character=gio] .character-info>.btn.solid,.avatar-dialog[data-character=gio] .character-option.is-current,
+.avatar-dialog[data-character=gio] .dialog-close{background:#a3390bdf;color:#fff0da;border-color:#f6a15e}

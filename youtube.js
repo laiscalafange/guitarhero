@@ -13,6 +13,12 @@ const common = ['--ignore-config', '--no-playlist', '--no-progress', '--socket-t
 // Mensagens específicas, sem expor dados internos, cookies ou URLs de mídia assinadas.
 function youtubeFailure(stderr) {
   const detail = String(stderr || '');
+  if (/permissionerror|winerror\s*10013|errno\s*13|\beacces\b|socket.*access permissions/i.test(detail)) {
+    return { code: 'rede-bloqueada', message: 'O servidor está sem permissão para acessar o YouTube. Reinicie o servidor com acesso à internet e tente novamente.' };
+  }
+  if (/getaddrinfo|name resolution|network is unreachable|connection refused|connection reset|failed to resolve/i.test(detail)) {
+    return { code: 'conexao', message: 'O servidor não conseguiu se conectar ao YouTube. Confira a conexão com a internet e tente novamente.' };
+  }
   if (/sign in to confirm|not a bot|captcha|automated queries|unusual traffic/i.test(detail)) {
     return { code: 'verificacao', message: 'O YouTube está exigindo verificação do servidor. Isso pode acontecer com o IP do Render; executar setup:youtube novamente não resolve. Use um arquivo de áudio do PC.' };
   }
@@ -40,14 +46,15 @@ function youtubeFailure(stderr) {
   if (/video unavailable|this video is unavailable|video has been removed|video is unavailable|not available in your country/i.test(detail)) {
     return { code: 'indisponivel', message: 'O vídeo está indisponível para este servidor ou foi removido. Tente outro vídeo público.' };
   }
-  return { code: 'desconhecido', message: 'Falha ao importar a música do YouTube. Veja o código de falha nos Logs do Render ou envie um áudio do PC.' };
+  return { code: 'desconhecido', message: 'Falha na consulta ao YouTube. Tente novamente ou confira os logs do servidor.' };
 }
 function run(args, signal, timeout = 90000) {
   return new Promise((resolve, reject) => {
     execFile(executable, [...common, ...args], { signal, timeout, windowsHide: true, maxBuffer: 5 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (!error) return resolve(stdout);
       if (error.code === 'ENOENT') return reject(Error('YouTube não configurado no servidor. Execute npm run setup:youtube e reinicie o jogo.'));
-      if (error.name === 'AbortError') return reject(Error('Importação cancelada: a sala foi encerrada.'));
+      if (['EACCES', 'EPERM'].includes(error.code)) return reject(Error('O servidor não tem permissão para executar a busca do YouTube. Reinicie o servidor com as permissões necessárias.'));
+      if (error.name === 'AbortError') return reject(Error('Operação cancelada: a sala foi encerrada.'));
       if (error.killed) return reject(Error('O YouTube demorou para responder. Tente outra música.'));
       const failure = youtubeFailure(stderr);
       // Imprime somente a categoria do erro, não logs completos do yt-dlp.

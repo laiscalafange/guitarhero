@@ -8,3 +8,11 @@ node_modules/
 bin/
 
 *.wav
+
+# Caches, arquivos temporários e pacotes musicais locais.
+.cache/
+coverage/
+*.tmp
+*.bak
+*.zip
+*.sng

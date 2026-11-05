@@ -4,6 +4,28 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const youtube = require('../youtube');
 const createMusicService = require('../music-service');
+
+test('falhas de rede da busca têm orientação específica, sem vazar stderr', async () => {
+  const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+  const source=fs.readFileSync(path.join(__dirname,'../youtube.js'),'utf8');
+  for(const [stderr,expected]of [
+    ['PermissionError: [Errno 13] Permission denied https://example.com/private?token=secret','sem permissão para acessar'],
+    ['[WinError 10013] socket access permissions','sem permissão para acessar'],
+    ['getaddrinfo failed https://example.com/private?token=secret','conectar ao YouTube'],
+    ['Unexpected extractor failure https://example.com/private?token=secret','Falha na consulta'],
+    ['HTTP Error 403: Forbidden https://example.com/private?token=secret','HTTP 403'],
+  ]){
+    const module={exports:{}},logs=[];
+    vm.runInNewContext(source,{module,exports:module.exports,__dirname:path.join(__dirname,'..'),process:{env:{},platform:process.platform,execPath:process.execPath},URL,
+      require:name=>name==='node:child_process'?{execFile:(_file,_args,_options,callback)=>callback({code:1},'',stderr)}:require(name),
+      console:{warn:text=>logs.push(text)}});
+    await assert.rejects(module.exports.search('teste'),error=>{
+      assert.match(error.message,new RegExp(expected,'i'));
+      assert.doesNotMatch(error.message,/example\.com|token|secret/i);return true;
+    });
+    assert.doesNotMatch(logs.join(' '),/example\.com|token|secret/i);
+  }
+});
 test('aceita somente IDs e links do YouTube; rejeita destinos arbitrários', () => {
   for (const value of ['sMcWOaJFuw0', 'https://youtu.be/sMcWOaJFuw0?t=2', 'https://www.youtube.com/watch?v=sMcWOaJFuw0', 'https://music.youtube.com/watch?v=sMcWOaJFuw0']) assert.equal(youtube.videoId(value), 'sMcWOaJFuw0');
   for (const value of ['https://example.com/watch?v=sMcWOaJFuw0', 'http://127.0.0.1/secrets', 'https://youtube.com.evil.test/watch?v=sMcWOaJFuw0', '--exec calc', 'https://youtube.com:8080/watch?v=sMcWOaJFuw0']) assert.equal(youtube.videoId(value), null);

@@ -1,6 +1,12 @@
 # BDSM de Garagem
 
-A versão **2.0.9** organiza a sala nas abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola tem um tema próprio em preto e vermelho, com efeitos no palco e um trecho de escuridão perto do meio da música. Os outros personagens mantêm o visual padrão. Os arquivos `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md` explicam essas alterações.
+A versão **2.2.1** reúne a versão final com os temas do Chapola e da Johgi, análise de todos os instrumentos e limpeza dos arquivos antigos sem uso. Foram retirados 34 arquivos obsoletos da árvore do repositório, aproximadamente 25,5 MB. Veja `LIMPEZA-FINAL-2.2.1.md` para o inventário e como restaurar.
+
+A organização das notas mantém graves à esquerda, agudas à direita, alturas repetidas em teclas consistentes e acordes rápidos mais simples. Usa as análises que já estão preparadas, sem novos modelos ou downloads. Veja `NOTAS-MUSICAIS-2.2.0.md` para as referências humanas, a comparação e como desfazer.
+
+O tema da Johgi mantém laranja queimado escuro e translúcido, pôr do sol, hibiscos e efeitos no palco. Veja `JOHGI-TEMA-2.1.0.md` e `JOHGI-CORES-2.1.1.md` para a estrutura do tema.
+
+A sala mantém as abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola mantém o tema em preto e vermelho e o trecho de escuridão descritos em `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md`.
 
 Jogo de ritmo para jogar **sozinho ou com amigos pela internet**, com salas compartilhadas, músicas de exemplo, upload de áudio, biblioteca de partituras e preparação opcional de músicas por IA.
 
@@ -51,7 +57,7 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 - **Upload e YouTube**: áudios ficam temporariamente no servidor; arquivos enviados podem exigir análise antes de jogar.
 - **Biblioteca**: pesquisa e importação de pacotes de partituras dependem de um catálogo externo que pode ficar indisponível.
 - **IA**: processa a música no navegador do participante responsável pela preparação. O primeiro uso baixa modelos grandes (aproximadamente 110 MB para separação); exige conexão, memória e tempo de processamento. A qualidade das notas é **estimada**, não garantida.
-- **YouTube**: no Windows, o pacote inclui `yt-dlp.exe`. Se deixar de funcionar, execute `CONFIGURAR-YOUTUBE.cmd` para baixar uma versão atualizada. Em outros sistemas, use `npm run setup:youtube`. Alguns vídeos são bloqueados pela própria plataforma.
+- **YouTube**: execute `CONFIGURAR-YOUTUBE.cmd` no Windows ou `npm run setup:youtube` para instalar o importador dentro de `bin/`. Ele não é versionado no Git. Alguns vídeos exigem verificação ou são bloqueados pela própria plataforma; atualizar o importador não garante remover esses bloqueios.
 
 ## Organização dos arquivos
 
@@ -60,6 +66,7 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 - `public/index.html`: estrutura da interface.
 - `public/js/game.js` e `public/js/room-client.js`: jogo, controles e conexão com a sala.
 - `public/js/chapola-*.js` e `public/css/chapola-theme.css`: apresentação exclusiva do Chapola, incluindo palco e escuridão.
+- `public/js/johgi-*.js` e `public/css/johgi-theme.css`: apresentação exclusiva da Johgi; usa os mesmos dados de desenho e preserva o restante do jogo.
 - `public/*.js`, `public/vendor/`, `public/models/`: clientes, workers de IA, bibliotecas e modelo de notas usados pelo navegador.
 - `src/`, `scripts/`: código-fonte e tarefas para recompilar os bundles.
 - `tests/`: testes automatizados.
