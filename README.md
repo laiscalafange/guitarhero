@@ -1,12 +1,17 @@
 # BDSM de Garagem
 
-A versão **2.2.1** reúne a versão final com os temas do Chapola e da Johgi, análise de todos os instrumentos e limpeza dos arquivos antigos sem uso. Foram retirados 34 arquivos obsoletos da árvore do repositório, aproximadamente 25,5 MB. Veja `LIMPEZA-FINAL-2.2.1.md` para o inventário e como restaurar.
+## Versão 2.2.2 — desempenho e estabilidade
 
-A organização das notas mantém graves à esquerda, agudas à direita, alturas repetidas em teclas consistentes e acordes rápidos mais simples. Usa as análises que já estão preparadas, sem novos modelos ou downloads. Veja `NOTAS-MUSICAIS-2.2.0.md` para as referências humanas, a comparação e como desfazer.
+Esta atualização mantém as regras, músicas, multiplayer e temas visuais da 2.2.1. Reduz as mensagens redundantes da sala, corrige a confirmação de pronto ao mudar instrumento ou dificuldade, acelera a adaptação de partituras grandes, reduz o pico de memória na mistura de áudio e habilita cache condicional para scripts e arquivos estáticos. Veja [`RELATORIO-OTIMIZACAO-2.2.2.md`](docs/relatorios/RELATORIO-OTIMIZACAO-2.2.2.md) para detalhes, testes e limitações.
 
-O tema da Johgi mantém laranja queimado escuro e translúcido, pôr do sol, hibiscos e efeitos no palco. Veja `JOHGI-TEMA-2.1.0.md` e `JOHGI-CORES-2.1.1.md` para a estrutura do tema.
 
-A sala mantém as abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola mantém o tema em preto e vermelho e o trecho de escuridão descritos em `CHAPOLA-PALCO-2.0.8.md` e `CHAPOLA-BREU-MEIO-2.0.9.md`.
+A versão **2.2.1** reúne a versão final com os temas do Chapola e da Johgi, análise de todos os instrumentos e limpeza dos arquivos antigos sem uso. Foram retirados 34 arquivos obsoletos da árvore do repositório, aproximadamente 25,5 MB. Veja [`LIMPEZA-FINAL-2.2.1.md`](docs/manutencao/LIMPEZA-FINAL-2.2.1.md) para o inventário e como restaurar.
+
+A organização das notas mantém graves à esquerda, agudas à direita, alturas repetidas em teclas consistentes e acordes rápidos mais simples. Usa as análises que já estão preparadas, sem novos modelos ou downloads. Veja [`NOTAS-MUSICAIS-2.2.0.md`](docs/musicas/NOTAS-MUSICAIS-2.2.0.md) para as referências humanas, a comparação e como desfazer.
+
+O tema da Johgi mantém laranja queimado escuro e translúcido, pôr do sol, hibiscos e efeitos no palco. Veja [`JOHGI-TEMA-2.1.0.md`](docs/personagens/johgi/JOHGI-TEMA-2.1.0.md) e [`JOHGI-CORES-2.1.1.md`](docs/personagens/johgi/JOHGI-CORES-2.1.1.md) para a estrutura do tema.
+
+A sala mantém as abas **Banda, Músicas e Fila**. O histórico fica em Banda; o perfil permite mudar nome e personagem; a engrenagem ao lado abre os ajustes. Chapola mantém o tema em preto e vermelho e o trecho de escuridão descritos em [`CHAPOLA-PALCO-2.0.8.md`](docs/personagens/chapola/CHAPOLA-PALCO-2.0.8.md) e [`CHAPOLA-BREU-MEIO-2.0.9.md`](docs/personagens/chapola/CHAPOLA-BREU-MEIO-2.0.9.md).
 
 Jogo de ritmo para jogar **sozinho ou com amigos pela internet**, com salas compartilhadas, músicas de exemplo, upload de áudio, biblioteca de partituras e preparação opcional de músicas por IA.
 
@@ -59,6 +64,12 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 - **IA**: processa a música no navegador do participante responsável pela preparação. O primeiro uso baixa modelos grandes (aproximadamente 110 MB para separação); exige conexão, memória e tempo de processamento. A qualidade das notas é **estimada**, não garantida.
 - **YouTube**: execute `CONFIGURAR-YOUTUBE.cmd` no Windows ou `npm run setup:youtube` para instalar o importador dentro de `bin/`. Ele não é versionado no Git. Alguns vídeos exigem verificação ou são bloqueados pela própria plataforma; atualizar o importador não garante remover esses bloqueios.
 
+## Documentação do projeto
+
+Os registros técnicos e o histórico de atualizações estão organizados por assunto em [**docs/README.md**](docs/README.md). O índice inclui interface, músicas, personagens, manutenção e relatórios. As notas de versões antigas são mantidas como histórico e podem descrever funcionalidades que foram posteriormente alteradas.
+
+Os avisos de terceiros e as respectivas licenças permanecem em [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ## Organização dos arquivos
 
 - `server.js`: servidor HTTP e WebSocket, salas e início das rodadas.
@@ -70,7 +81,7 @@ O arquivo `render.yaml` já está configurado para implantação de um **Web Ser
 - `public/*.js`, `public/vendor/`, `public/models/`: clientes, workers de IA, bibliotecas e modelo de notas usados pelo navegador.
 - `src/`, `scripts/`: código-fonte e tarefas para recompilar os bundles.
 - `tests/`: testes automatizados.
-- `THIRD-PARTY-NOTICES.md` e `src/demucs/LICENSE`: avisos/licenças de componentes externos; **não remova**.
+- [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) e `src/demucs/LICENSE`: avisos/licenças de componentes externos; **não remova**.
 
 ## Conferir o funcionamento
 

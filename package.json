@@ -1,6 +1,6 @@
 {
   "name": "bdsm-de-garagem-multiplayer",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "private": true,
   "description": "Jogo de ritmo com salas multiplayer via WebSocket",
   "scripts": {

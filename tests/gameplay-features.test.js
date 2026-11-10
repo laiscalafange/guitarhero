@@ -37,3 +37,38 @@ test('a nota longa só erra depois de passar o fim sem estar segurando',()=>{
  vm.runInContext('update(4.5)',ctx);
  assert.equal(P.miss,1);assert.equal(P.score,80);assert.equal(P.combo,0);
 });
+
+test('adaptação de partituras grandes elimina duplicatas da mesma pista preservando sustains', () => {
+  const ctx = vm.createContext({});
+  vm.runInContext(block('function adaptLanes(chart, wanted)', 'function makePlayer'), ctx);
+  const notes = [];
+  for (let i = 0; i < 12000; i++) notes.push({ t: i * 0.05, lane: i % 5, dur: .03 });
+  notes.push({ t: 1, lane: 0, dur: .5 });
+  const result = vm.runInContext(`adaptLanes(${JSON.stringify({ laneCount: 5, notes })}, 3)`, ctx);
+  assert.equal(result.laneCount, 3);
+  assert.ok(result.notes.length < notes.length);
+  assert.ok(result.notes.every(n => n.lane >= 0 && n.lane < 3));
+  assert.ok(result.notes.every(n => Number.isInteger(n.sl) && n.sl >= 0 && n.sl < 5));
+});
+
+test('mixagem residual preserva o áudio original e não cria matrizes temporárias por canal', async () => {
+  const ctx = vm.createContext({ Promise, setTimeout, Float32Array, Math });
+  vm.runInContext(block('async function makeResidualBuffer(', 'async function prepare('), ctx);
+  const makeBuffer = (channels, sampleRate) => ({
+    numberOfChannels: channels.length, length: channels[0].length, sampleRate,
+    getChannelData(index) { return channels[index]; }
+  });
+  const left = Float32Array.from([1, .8, .6, .4]);
+  const right = Float32Array.from([.9, .7, .5, .3]);
+  const source = makeBuffer([left, right], 44100);
+  const stem = makeBuffer([Float32Array.from([.2, .2, .2, .2])], 44100);
+  const c = { createBuffer(n, length, sr) {
+    assert.equal(sr, 44100);
+    return makeBuffer(Array.from({ length: n }, () => new Float32Array(length)), sr);
+  } };
+  const result = await ctx.makeResidualBuffer(c, { buffer: source, sr: 44100, stems: { baixo: stem } }, ['baixo']);
+  assert.ok(Math.abs(result.getChannelData(0)[0] - .8) < 1e-6);
+  assert.ok(Math.abs(result.getChannelData(1)[0] - .7) < 1e-6);
+  assert.equal(left[0], 1);
+  assert.ok(Math.abs(right[0] - .9) < 1e-6, 'não modifica o áudio original');
+});

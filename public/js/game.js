@@ -319,8 +319,9 @@ function hostGo() {
   Net.emit('go', { r: Math.floor(Net.now()), sg: S.song.key, roster });
 }
 function teamSize(P) {
-  const me = Net.me(), ps = Net.peers();
-  return G.roster.filter(r => r.i === P.instr && r.p !== me && ps.some(q => q.peer === r.p)).length;
+  const me = Net.r?.id || Net.me(), ps = Net.peers();
+  const active = new Set(ps.map(q => q.peer));
+  return G.roster.filter(r => r.i === P.instr && r.p !== me && active.has(r.p)).length;
 }
 function onHit(d) {
   if (!G || G.dead || !d || d.r !== G.round || !INSTR[d.i]) return;
@@ -837,10 +838,17 @@ function adaptLanes(chart, wanted) {
   // Duas notas simultâneas não podem ocupar a mesma pista: mantém a maior sustentação.
   mapped.sort((a,b) => a.t-b.t || a.lane-b.lane);
   const notes = [];
+  const lastByLane = new Map();
+  // A lista está ordenada por tempo. A última nota de cada pista é suficiente
+  // para identificar duplicatas: O(n) após a ordenação, não O(n²).
   for (const n of mapped) {
-    const old = notes.findLast(p => p.lane === n.lane && Math.abs(p.t-n.t)<.025);
-    if (old) { old.dur = Math.max(old.dur || 0,n.dur || 0); continue; }
+    const old = lastByLane.get(n.lane);
+    if (old && n.t - old.t < .025) {
+      old.dur = Math.max(old.dur || 0, n.dur || 0);
+      continue;
+    }
     notes.push(n);
+    lastByLane.set(n.lane, n);
   }
   // Evita slides sobrepostos na mesma pista após a redistribuição.
   const next = new Map();
@@ -865,6 +873,32 @@ function makePlayer(cfg, chart) {
   };
 }
 
+async function makeResidualBuffer(c, song, instruments) {
+  const source = song.buffer;
+  const rest = c.createBuffer(source.numberOfChannels, source.length, song.sr);
+  const tracks = instruments.map(instrument => {
+    const stem = song.stems[instrument];
+    return { samples: stem.getChannelData(0), ratio: stem.sampleRate / song.sr };
+  });
+  // Usa lotes para não prender o navegador durante toda a separação de músicas longas.
+  const CHUNK = 524288;
+  for (let ch = 0; ch < rest.numberOfChannels; ch++) {
+    const data = rest.getChannelData(ch);
+    data.set(source.getChannelData(ch));
+    for (const { samples, ratio } of tracks) {
+      for (let start = 0; start < data.length; start += CHUNK) {
+        const end = Math.min(start + CHUNK, data.length);
+        for (let j = start; j < end; j++) {
+          const at = j * ratio, lo = Math.floor(at), frac = at - lo;
+          data[j] -= (samples[lo] || 0) * (1 - frac) + (samples[lo + 1] || 0) * frac;
+        }
+        if (end < data.length) await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+  return rest;
+}
+
 async function prepare(go, revision) {
   const act = go.roster.map(r => ({ instr: r.i, diff: r.d, lanes: r.l, p: r.p, i: 0 }));
   const mine = act.find(a => a.p === Net.me());
@@ -881,14 +915,10 @@ async function prepare(go, revision) {
       setProg(.1,'Recebendo as faixas separadas da banda…');
       song.stems ||= {};
       for(const instrument of wanted)if(!song.stems[instrument])song.stems[instrument]=await S.ai.stem(instrument);
-      // Residual calculado a partir do original: sem duplicar volume e sem mudar o relógio.
-      const rest=c.createBuffer(song.buffer.numberOfChannels,song.buffer.length,song.sr);
-      for(let ch=0;ch<rest.numberOfChannels;ch++) {
-        const data=Float32Array.from(song.buffer.getChannelData(ch));
-        for(const instrument of wanted){const stem=song.stems[instrument],x=stem.getChannelData(0),ratio=stem.sampleRate/song.sr;for(let j=0;j<data.length;j++){const at=j*ratio,lo=Math.floor(at),frac=at-lo;data[j]-=(x[lo]||0)*(1-frac)+(x[lo+1]||0)*frac;}}
-        rest.copyToChannel(data,ch);
-      }
-      song.rest=rest;song.playStems=wanted;
+      // Mistura diretamente no buffer de destino, sem criar outra cópia grande
+      // por canal. Cede a thread entre blocos, mantendo o lobby responsivo.
+      song.rest=await makeResidualBuffer(c,song,wanted);
+      song.playStems=wanted;
     }
     setProg(.92,'Montando a pista com as notas deste instrumento…');
     const chart=adaptLanes(JamCharts.fromManifest(song.analysis,mine.instr,mine.diff,song.duration), mine.lanes || 4);
@@ -1153,7 +1183,7 @@ function clip(g, t, w) { if (g.measureText(t).width <= w) return t; while (t.len
 // os outros jogadores da sala: nome, instrumento, pontos e um clarão vermelho quando erram
 function drawRemote(g, tv) {
   const skin=typeof window!=='undefined'&&window.JamTheme?.active?window.JamTheme:null;
-  const me = Net.me(), others = G.roster.filter(r => r.p !== me);
+  const me = Net.r?.id || Net.me(), others = G.roster.filter(r => r.p !== me);
   if (!others.length) return;
   const ps = Net.peers();
   g.textAlign = 'left'; g.textBaseline = 'alphabetic';
@@ -1238,7 +1268,7 @@ function drawPlayer(g, P, tv) {
   const look = S.look, N = P.notes;
   // linhas de compasso (se o tempo foi detectado)
   const bt = S.song?.F?.beat || null;
-  if (bt) {
+  if (bt && Number.isFinite(bt.ph) && Number.isFinite(bt.per) && bt.per > 0.1 && bt.per <= 60) {
     for (let k = Math.ceil((tv - bt.ph) / bt.per); ; k++) {
       const t = bt.ph + k * bt.per; if (t > tv + look) break;
       const u = (t - tv) / look; if (u < 0) continue;

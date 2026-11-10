@@ -59,7 +59,7 @@ Atualize http://localhost:3003/ e jogue com o Chapola.
 
 Pacotes completos: `outputs/bdsm-de-garagem-2.0.8-render.zip` e `outputs/bdsm-de-garagem-2.0.8-windows.zip`. A instalação segue as instruções já existentes no projeto. A hospedagem não foi publicada automaticamente.
 
-O guia da mudança anterior é `CHAPOLA-SO-OLHOS-2.0.7.md`, incluído no projeto e em `outputs/`. Ele descreve as imagens dos olhos e como desfazer essa parte separadamente.
+O guia da mudança anterior é [`CHAPOLA-SO-OLHOS-2.0.7.md`](CHAPOLA-SO-OLHOS-2.0.7.md), incluído no projeto e em `outputs/`. Ele descreve as imagens dos olhos e como desfazer essa parte separadamente.
 
 ## Desfazer só a nova estética do braço
 
