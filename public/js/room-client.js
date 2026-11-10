@@ -75,6 +75,12 @@ async function connectRoom(code, onDisconnected) {
       } else if (m.type === 'history') {
         history = Array.isArray(m.rounds) ? m.rounds : [];
         (listeners.history || []).forEach(fn => fn(history));
+      } else if (m.type === 'stats') {
+        const player = roster.find(p => p.peer === m.peer);
+        if (player && player.presence) {
+          if (m.stats === null) delete player.presence.st;
+          else player.presence.st = m.stats;
+        }
       } else if (m.type === 'roundCancelled') {
         (listeners.roundCancelled || []).forEach(fn => fn(m.round));
       } else if (m.type === 'analysis') {

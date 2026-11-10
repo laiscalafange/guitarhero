@@ -18,7 +18,7 @@ O tema é ativado pelo ID já existente da Johgi (`gio`). O nome artístico e a 
 | `public/assets/johgi/` | Quatro referências copiadas sem editar os originais e um hibisco vetorial criado para a interface. |
 | `public/index.html` | Carrega o CSS e os dois scripts novos, antes da inicialização do jogo. |
 | `tests/johgi-theme.test.js` | Verifica ausência de alterações em notas, jogador e contexto do canvas; troca de tema e movimento reduzido. |
-| `package.json`, `package-lock.json`, `README.md` | Identificação da versão e documentação. Não acrescentam dependências. |
+| `package.json`, `package-lock.json`, [`README.md`](../../../README.md) | Identificação da versão e documentação. Não acrescentam dependências. |
 
 ## Referências usadas
 
@@ -56,4 +56,4 @@ Para deixar de usar o tema sem apagar arquivos, basta escolher outro personagem 
 
 Para desativar apenas este tema no código, retire de `public/index.html` as linhas que carregam `johgi-theme.css`, `johgi-stage.js` e `johgi-theme.js`. O roteamento volta ao tema anterior do jogo. Não é necessário editar o servidor ou a lógica de partida.
 
-A cópia anterior dos arquivos existentes fica em `outputs/backup-antes-johgi-2.1.0`, na pasta principal deste trabalho. Ela inclui `public/index.html`, `README.md`, `package.json` e `package-lock.json`. O registro `logica-e-temas-preservados.json` guarda os hashes dos arquivos que permaneceram intactos.
+A cópia anterior dos arquivos existentes fica em `outputs/backup-antes-johgi-2.1.0`, na pasta principal deste trabalho. Ela inclui `public/index.html`, [`README.md`](../../../README.md), `package.json` e `package-lock.json`. O registro `logica-e-temas-preservados.json` guarda os hashes dos arquivos que permaneceram intactos.

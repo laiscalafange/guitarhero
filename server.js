@@ -15,6 +15,12 @@ const MAX_FRAME = 32768;
 const MAX_SOCKET_BACKLOG = 1024 * 1024; // Evita acumular mensagens para conexões lentas.
 const rooms = new Map();
 const html = path.join(__dirname, 'public', 'index.html');
+const publicRoot = path.resolve(__dirname, 'public');
+const legacyScripts = new Set([
+  '/chart-engine.js', '/chart-import.js', '/ai-client.js',
+  '/ai-worker.js', '/ai-worker-gpu.js'
+]);
+const staticPrefixes = ['/css/', '/js/', '/vendor/', '/models/', '/assets/'];
 const analysis = require('./analysis-service')({ rooms, broadcast, announce });
 const music = require('./music-service')({ rooms, broadcast, onRemove: (room,key) => analysis.remove(room,key),onAdd:room=>analysis.enqueue(room),canSelect:(room,key)=>analysis.state(room,key).status==='ready' });
 
@@ -25,19 +31,14 @@ const server = http.createServer(async (req, res) => {
   if (await music.handle(req, res, url)) return;
   // Arquivos estaticos do jogo. Depois da modularizacao, CSS e JS ficam
   // em public/css/ e public/js/, mas os scripts antigos continuam na raiz.
-  const legacyScripts = new Set([
-    '/chart-engine.js', '/chart-import.js', '/ai-client.js',
-    '/ai-worker.js', '/ai-worker-gpu.js'
-  ]);
   const isStatic = legacyScripts.has(pathname) ||
-    ['/css/', '/js/', '/vendor/', '/models/', '/assets/'].some(prefix => pathname.startsWith(prefix));
+    staticPrefixes.some(prefix => pathname.startsWith(prefix));
 
   if (isStatic) {
     let decoded;
     try { decoded = decodeURIComponent(pathname); }
     catch { res.writeHead(400); res.end('Caminho inválido'); return; }
 
-    const publicRoot = path.resolve(__dirname, 'public');
     const target = path.resolve(publicRoot, '.' + decoded);
     const ext = path.extname(target).toLowerCase();
     const mime = {
@@ -49,18 +50,38 @@ const server = http.createServer(async (req, res) => {
       '.bin': 'application/octet-stream'
       ,'.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp'
     }[ext];
-    if (!target.startsWith(publicRoot + path.sep) || !mime ||
-      !fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    if (!target.startsWith(publicRoot + path.sep) || !mime) {
       res.writeHead(404); res.end('Não encontrado'); return;
     }
-    res.writeHead(200, {
+    let stat;
+    try { stat = fs.statSync(target); }
+    catch { res.writeHead(404); res.end('Não encontrado'); return; }
+    if (!stat.isFile()) { res.writeHead(404); res.end('Não encontrado'); return; }
+    if (!['GET', 'HEAD'].includes(req.method)) {
+      res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return;
+    }
+    const etag = `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+    const headers = {
       'Content-Type': mime,
-      'Cache-Control': ['.js', '.mjs', '.css'].includes(ext) ? 'no-store' : 'public, max-age=3600',
+      'Content-Length': stat.size,
+      'ETag': etag,
+      'Last-Modified': stat.mtime.toUTCString(),
+      // CSS/JS podem mudar durante o desenvolvimento: valida sem baixar tudo.
+      'Cache-Control': ['.js', '.mjs', '.css'].includes(ext) ? 'no-cache' :
+        ['.wasm', '.bin'].includes(ext) ? 'public, max-age=86400' : 'public, max-age=3600',
       'X-Content-Type-Options': 'nosniff',
       'Cross-Origin-Resource-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'credentialless'
-    });
-    fs.createReadStream(target).pipe(res);
+    };
+    if (req.headers['if-none-match'] === etag ||
+        (!req.headers['if-none-match'] && req.headers['if-modified-since'] &&
+         new Date(req.headers['if-modified-since']).getTime() >= Math.floor(stat.mtimeMs / 1000) * 1000)) {
+      delete headers['Content-Length'];
+      res.writeHead(304, headers); res.end(); return;
+    }
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') { res.end(); return; }
+    fs.createReadStream(target).on('error', () => res.destroy()).pipe(res);
     return;
   }
 
@@ -90,15 +111,20 @@ const frame = (opcode, data = Buffer.alloc(0)) => {
   return out;
 };
 
-function send(c, payload) {
+function sendFrame(c, encoded) {
   if (c.closed || !c.socket.writable) return;
   if (c.socket.writableLength > MAX_SOCKET_BACKLOG) {
     close(c, 1013, 'Conexao lenta');
     return;
   }
-  try { c.socket.write(frame(1, JSON.stringify(payload))); } catch { drop(c); }
+  try { c.socket.write(encoded); } catch { drop(c); }
 }
-function broadcast(room, msg) { for (const c of room.members) send(c, msg); }
+function send(c, payload) { sendFrame(c, frame(1, JSON.stringify(payload))); }
+// Codifica uma vez, em vez de serializar o mesmo estado para cada pessoa da sala.
+function broadcast(room, msg) {
+  const encoded = frame(1, JSON.stringify(msg));
+  for (const c of room.members) sendFrame(c, encoded);
+}
 function roomSnapshot(room) {
   return [...room.members].map(c => ({ peer: c.id, presence: c.presence }));
 }
@@ -161,24 +187,26 @@ const allowedDifficulties = new Set(['facil', 'medio', 'dificil', 'expert']);
 function applyPresence(c, d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return;
   const p = c.presence;
+  const previous = { i: p.i, d: p.d, l: p.l, sg: p.sg, on: p.on };
   if (typeof d.n === 'string') p.n = d.n.trim().slice(0, 16) || 'Jogador';
   if (['chapola','irisu','roberto','ratazana','lizzi','gio','tatsugiri'].includes(d.avatar)) p.avatar = d.avatar;
   const available = analysis.state(c.room,c.room.song?.meta.key);
   if (allowedInstruments.has(d.i) && (available.status !== 'ready' || available.instruments.includes(d.i))) p.i = d.i;
   if (allowedDifficulties.has(d.d)) p.d = d.d;
   if (typeof d.on === 'boolean') p.on = d.on;
-  // Alterar instrumento, dificuldade, teclas ou ativação cancela o pronto anterior.
-  if (['i', 'd', 'l', 'sg', 'on'].some(k => Object.hasOwn(d, k) && d[k] !== p[k])) {
-    p.ready = false;
-    delete p.readyRev;
-  }
   if (Number.isSafeInteger(d.l) && d.l >= 3 && d.l <= 5) p.l = d.l;
   for (const k of ['sg', 'hs', 'hn']) {
     if (d[k] === null) delete p[k];
     else if (typeof d[k] === 'string') p[k] = d[k].slice(0, 160);
   }
+  // Compara com o estado ANTERIOR. Antes, i/d já tinham sido alterados quando
+  // eram comparados, permitindo iniciar com configurações não confirmadas.
+  const changed = Object.keys(previous).some(k => p[k] !== previous[k]);
+  if (changed) { p.ready = false; delete p.readyRev; }
   if (typeof d.ready === 'boolean') {
-    p.ready = d.ready && p.on !== false && [3,4,5].includes(p.l) && p.sg === c.room.song?.meta.key;
+    // O primeiro pacote pode trazer configuração e pronto juntos (clientes antigos).
+    const firstSetup = previous.i === undefined && previous.sg === undefined;
+    p.ready = (!changed || firstSetup) && d.ready && p.on !== false && [3,4,5].includes(p.l) && p.sg === c.room.song?.meta.key;
     if (p.ready) p.readyRev = c.room.song.meta.revision;
     else delete p.readyRev;
   }
@@ -192,7 +220,13 @@ function applyPresence(c, d) {
       c: Array.isArray(s.c) ? s.c.slice(0, 3).map(points) : [0, 0, 0], ms: points(s.ms), cv: points(s.cv), fin: s.fin ? 1 : 0 };
   }
   if (p.st?.fin) saveRoundScore(c.room, c, p.st);
-  announce(c.room);
+  // Pontuações chegam 4x por segundo/jogador. Evita retransmitir a lista
+  // completa de participantes (e redesenhar o lobby) em cada atualização.
+  if (Object.keys(d).length === 1 && Object.hasOwn(d, 'st')) {
+    broadcast(c.room, { type: 'stats', peer: c.id, stats: p.st || null });
+  } else {
+    announce(c.room);
+  }
 }
 function isHost(c) { return c.room.hostId === c.id; }
 function handleText(c, text) {
@@ -260,8 +294,10 @@ function handleText(c, text) {
   broadcast(c.room, { type: 'event', event: m.event, peer: c.id, data: m.data });
   if (m.event === 'start') { announce(c.room); publishHistory(c.room); }
 }
+const wsTextDecoder = new TextDecoder('utf-8', { fatal: true });
 function receive(c, raw) {
-  c.buffer = Buffer.concat([c.buffer, raw]);
+  // Em mensagens completas não é necessário copiar o buffer de entrada.
+  c.buffer = c.buffer.length ? Buffer.concat([c.buffer, raw]) : raw;
   if (c.buffer.length > MAX_FRAME * 2) return close(c, 1009, 'Mensagem grande');
   while (c.buffer.length >= 2) {
     const b = c.buffer, fin = !!(b[0] & 0x80), opcode = b[0] & 0x0f;
@@ -299,8 +335,7 @@ function receive(c, raw) {
     } else return close(c, 1002, 'Operação inválida');
     if (fin) {
       const complete = Buffer.concat(c.parts); c.parts = []; c.partSize = 0;
-      const decoder = new TextDecoder('utf-8', { fatal: true });
-      try { handleText(c, decoder.decode(complete)); } catch { return close(c, 1007, 'Texto inválido'); }
+      try { handleText(c, wsTextDecoder.decode(complete)); } catch { return close(c, 1007, 'Texto inválido'); }
     }
   }
 }

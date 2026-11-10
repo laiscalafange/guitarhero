@@ -246,3 +246,59 @@ test('pronto é cancelado ao trocar instrumento ou quantidade de teclas',async()
   a.send('go',{r:991,sg:'rock',roster:[{p:a.id,i:'guitarra',d:'facil',l:3}]});
   await until(()=>a.messages.find(m=>m.type==='event'&&m.event==='go'&&m.data.r===991));
 });
+
+test('trocar instrumento, dificuldade ou ativação cancela o pronto já confirmado', async () => {
+  const c = await connect('ready-change-optimized');
+  const presence = data => c.ws.send(JSON.stringify({ type: 'presence', data }));
+  presence({ n: 'Teste', i: 'guitarra', d: 'facil', l: 4, sg: 'rock', on: true, ready: true });
+  await until(() => c.messages.findLast(m => m.type === 'peers')?.peers[0]?.presence.ready);
+  for (const [change, expected] of [
+    [{ i: 'baixo' }, 'baixo'],
+    [{ d: 'expert' }, 'expert'],
+    [{ on: false }, false]
+  ]) {
+    // Um jogador só pode ficar pronto depois da confirmação do estado atual.
+    presence(change);
+    await until(() => {
+      const p = c.messages.findLast(m => m.type === 'peers')?.peers[0]?.presence;
+      const field = Object.keys(change)[0];
+      return p && p[field] === expected && p.ready === false;
+    });
+    if (change.on === false) break;
+    presence({ ready: true });
+    await until(() => c.messages.findLast(m => m.type === 'peers')?.peers[0]?.presence.ready);
+  }
+});
+
+test('placares frequentes enviam só o delta sem republicar toda a lista de pessoas', async () => {
+  const a = await connect('scores-delta-optimized'), b = await connect('scores-delta-optimized');
+  a.ws.send(JSON.stringify({ type: 'presence', data: { n: 'A', i: 'guitarra', d: 'facil', l: 4, sg: 'rock' } }));
+  b.ws.send(JSON.stringify({ type: 'presence', data: { n: 'B', i: 'baixo', d: 'medio', l: 4, sg: 'rock' } }));
+  await until(() => b.messages.some(m => m.type === 'peers' && m.peers.every(p => !!p.presence.n)));
+  const peersBefore = b.messages.filter(m => m.type === 'peers').length;
+  a.ws.send(JSON.stringify({ type: 'presence', data: { st: { r: 44, sc: 450, ms: 1, mx: 8 } } }));
+  const delta = await until(() => b.messages.find(m => m.type === 'stats' && m.peer === a.id));
+  assert.equal(delta.stats.sc, 450);
+  assert.equal(b.messages.filter(m => m.type === 'peers').length, peersBefore);
+  a.ws.send(JSON.stringify({ type: 'presence', data: { st: null } }));
+  await until(() => b.messages.some(m => m.type === 'stats' && m.peer === a.id && m.stats === null));
+});
+
+test('CSS e scripts expõem ETag, HEAD e 304 para evitar transferências repetidas', async () => {
+  const uri = base + '/js/room-client.js';
+  const first = await fetch(uri);
+  assert.equal(first.status, 200);
+  const etag = first.headers.get('etag');
+  assert.match(etag, /^W\//);
+  assert.equal(first.headers.get('cache-control'), 'no-cache');
+  const bytes = (await first.arrayBuffer()).byteLength;
+  assert.ok(bytes > 100);
+  const head = await fetch(uri, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(Number(head.headers.get('content-length')), bytes);
+  assert.equal((await head.text()).length, 0);
+  const cached = await fetch(uri, { headers: { 'If-None-Match': etag } });
+  assert.equal(cached.status, 304);
+  assert.equal((await cached.text()).length, 0);
+  assert.equal((await fetch(uri, { method: 'POST' })).status, 405);
+});
